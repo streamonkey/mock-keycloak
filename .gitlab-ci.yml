@@ -8,3 +8,5 @@ stages:
 
 go:build:
   extends: .go:build
+  script:
+    - go build -o mock-keycloak cmd/mock-keycloak/main.go
