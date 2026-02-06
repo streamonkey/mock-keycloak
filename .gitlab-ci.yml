@@ -1,0 +1,10 @@
+include:
+  - project: "devops/cicd-templates/golang"
+    ref: v1.9.1
+    file: "go-latest.yml"
+
+stages:
+  - build
+
+go:build:
+  extends: .go:build

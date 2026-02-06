@@ -1,0 +1,24 @@
+{
+    "baseURL": "https://local.streamonkey.net:10101",
+    "addr": ":10101",
+    "defaultUser": {
+        "sub": "00000000-0000-0000-0000-000000000000",
+        "name": "Mock User",
+        "email": "mock@example.com",
+        "email_verified": true,
+        "preferred_username": "mockuser",
+        "given_name": "Mock",
+        "family_name": "User",
+        "groups": [],
+        "realm_access": {
+            "roles": [
+                "superadmin"
+            ]
+        },
+        "resource_access": {}
+    },
+    "tls": {
+        "certFile": "certs/local.streamonkey.net.crt",
+        "keyFile": "certs/local.streamonkey.net.key"
+    }
+}

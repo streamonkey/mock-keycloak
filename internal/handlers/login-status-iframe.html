@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+</head>
+
+<body>
+  <script>
+    // Mock session iframe - always returns "unchanged" to indicate session is valid
+    window.addEventListener("message", function (event) {
+      if (typeof event.data === "string" && event.data.split(" ").length === 2) {
+        event.source.postMessage("unchanged", event.origin)
+      }
+    });
+  </script>
+</body>
+
+</html>
