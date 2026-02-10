@@ -12,11 +12,33 @@
         "family_name": "User",
         "groups": [],
         "realm_access": {
-            "roles": [
-                "superadmin"
-            ]
+            "roles": []
         },
-        "resource_access": {}
+        "resource_access": {
+            "dashboard": {
+                "roles": [
+                    "essentials",
+                    "pro",
+                    "mount:absolut-germany"
+                ]
+            }
+        }
+    },
+    "clients": {
+        "backend-service": {
+            "sub": "11111111-1111-1111-1111-111111111111",
+            "name": "Backend Service",
+            "email": "service@example.com",
+            "email_verified": true,
+            "preferred_username": "backend-service",
+            "given_name": "Backend",
+            "family_name": "Service",
+            "groups": [],
+            "realm_access": {
+                "roles": ["service"]
+            },
+            "resource_access": {}
+        }
     },
     "tls": {
         "certFile": "certs/local.streamonkey.net.crt",

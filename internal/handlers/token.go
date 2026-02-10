@@ -30,7 +30,7 @@ type TokenErrorResponse struct {
 }
 
 // HandleToken returns a handler for the token endpoint
-func HandleToken(baseURL string, defaultUser config.DefaultUser) http.HandlerFunc {
+func HandleToken(baseURL string, cfg config.Config) http.HandlerFunc {
 	issuer := baseURL + "/realms/mock"
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -46,21 +46,23 @@ func HandleToken(baseURL string, defaultUser config.DefaultUser) http.HandlerFun
 		}
 
 		grantType := r.FormValue("grant_type")
+		clientID := r.FormValue("client_id")
+		user := cfg.GetUserForClient(clientID)
 
 		switch grantType {
 		case "authorization_code":
-			handleAuthorizationCodeGrant(w, r, issuer, defaultUser)
+			handleAuthorizationCodeGrant(w, r, issuer, user)
 		case "client_credentials":
-			handleClientCredentialsGrant(w, r, issuer, defaultUser)
+			handleClientCredentialsGrant(w, r, issuer, user)
 		case "refresh_token":
-			handleRefreshTokenGrant(w, r, issuer, defaultUser)
+			handleRefreshTokenGrant(w, r, issuer, user)
 		default:
 			writeTokenError(w, "unsupported_grant_type", "grant_type must be authorization_code, client_credentials, or refresh_token")
 		}
 	}
 }
 
-func handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Request, issuer string, defaultUser config.DefaultUser) {
+func handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Request, issuer string, user config.DefaultUser) {
 	code := r.FormValue("code")
 	clientID := r.FormValue("client_id")
 	// code_verifier is sent but we don't validate it
@@ -72,8 +74,8 @@ func handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Request, issuer
 		return
 	}
 
-	// Build token request from default user
-	req := buildTokenRequest(defaultUser, clientID, codeData.Scope)
+	// Build token request from user config
+	req := buildTokenRequest(user, clientID, codeData.Scope)
 
 	// Generate session state
 	sessionState := token.GenerateSessionID()
@@ -112,12 +114,12 @@ func handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Request, issuer
 	})
 }
 
-func handleClientCredentialsGrant(w http.ResponseWriter, r *http.Request, issuer string, defaultUser config.DefaultUser) {
+func handleClientCredentialsGrant(w http.ResponseWriter, r *http.Request, issuer string, user config.DefaultUser) {
 	clientID := r.FormValue("client_id")
 	scope := r.FormValue("scope")
 
-	// Build token request from default user
-	req := buildTokenRequest(defaultUser, clientID, scope)
+	// Build token request from user config
+	req := buildTokenRequest(user, clientID, scope)
 
 	// Generate access token only (no refresh token or ID token for client credentials)
 	accessToken, err := token.Generate(req, issuer, keys.GetPrivateKey(), keys.GetKeyID())
@@ -136,14 +138,14 @@ func handleClientCredentialsGrant(w http.ResponseWriter, r *http.Request, issuer
 	})
 }
 
-func handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, issuer string, defaultUser config.DefaultUser) {
+func handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, issuer string, user config.DefaultUser) {
 	clientID := r.FormValue("client_id")
 	// refresh_token is sent but we don't validate it - always return new tokens
 
 	scope := "openid"
 
-	// Build token request from default user
-	req := buildTokenRequest(defaultUser, clientID, scope)
+	// Build token request from user config
+	req := buildTokenRequest(user, clientID, scope)
 
 	// Generate session state
 	sessionState := token.GenerateSessionID()
@@ -182,21 +184,21 @@ func handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, issuer stri
 	})
 }
 
-func buildTokenRequest(defaultUser config.DefaultUser, clientID string, scope string) token.Request {
+func buildTokenRequest(user config.DefaultUser, clientID string, scope string) token.Request {
 	return token.Request{
-		Sub:               defaultUser.Sub,
+		Sub:               user.Sub,
 		Azp:               clientID,
 		Aud:               []string{clientID, "account"},
 		Scope:             scope,
-		EmailVerified:     defaultUser.EmailVerified,
-		Name:              defaultUser.Name,
-		Groups:            defaultUser.Groups,
-		PreferredUsername: defaultUser.PreferredUsername,
-		GivenName:         defaultUser.GivenName,
-		FamilyName:        defaultUser.FamilyName,
-		Email:             defaultUser.Email,
-		RealmAccess:       token.RoleAccess{Roles: defaultUser.RealmAccess.Roles},
-		ResourceAccess:    convertResourceAccess(defaultUser.ResourceAccess),
+		EmailVerified:     user.EmailVerified,
+		Name:              user.Name,
+		Groups:            user.Groups,
+		PreferredUsername: user.PreferredUsername,
+		GivenName:         user.GivenName,
+		FamilyName:        user.FamilyName,
+		Email:             user.Email,
+		RealmAccess:       token.RoleAccess{Roles: user.RealmAccess.Roles},
+		ResourceAccess:    convertResourceAccess(user.ResourceAccess),
 		ExpSeconds:        300,
 	}
 }

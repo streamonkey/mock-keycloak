@@ -36,11 +36,21 @@ func (t TLSConfig) Enabled() bool {
 }
 
 type Config struct {
-	BaseURL        string      `json:"baseURL"`
-	Addr           string      `json:"addr"`
-	SigningKeyFile string      `json:"signingKeyFile"`
-	TLS            TLSConfig   `json:"tls"`
-	DefaultUser    DefaultUser `json:"defaultUser"`
+	BaseURL        string                 `json:"baseURL"`
+	Addr           string                 `json:"addr"`
+	SigningKeyFile string                 `json:"signingKeyFile"`
+	TLS            TLSConfig              `json:"tls"`
+	DefaultUser    DefaultUser            `json:"defaultUser"`
+	Clients        map[string]DefaultUser `json:"clients"`
+}
+
+// GetUserForClient returns the user configuration for the given client ID.
+// Falls back to DefaultUser if the client is not explicitly configured.
+func (c Config) GetUserForClient(clientID string) DefaultUser {
+	if user, ok := c.Clients[clientID]; ok {
+		return user
+	}
+	return c.DefaultUser
 }
 
 // Load reads the configuration from the given JSON file path.

@@ -51,17 +51,60 @@ Create a `config.json` file:
       "roles": ["user"]
     },
     "resource_access": {}
+  },
+  "clients": {
+    "backend-service": {
+      "sub": "11111111-1111-1111-1111-111111111111",
+      "name": "Backend Service",
+      "email": "service@example.com",
+      "email_verified": true,
+      "preferred_username": "backend-service",
+      "given_name": "Backend",
+      "family_name": "Service",
+      "groups": [],
+      "realm_access": {
+        "roles": ["service"]
+      },
+      "resource_access": {}
+    }
   }
 }
 ```
 
-| Field            | Description                                                                                                         |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `baseURL`        | The externally-reachable URL of the mock server. Used as the `iss` (issuer) claim in tokens.                        |
-| `addr`           | The address to listen on (e.g., `:8080` or `127.0.0.1:8080`)                                                        |
-| `signingKeyFile` | Path to RSA private key for JWT signing. If not set, defaults to `jwt-signing.key`. See below.                      |
-| `tls`            | Optional TLS configuration. If both `certFile` and `keyFile` are set, the server starts with HTTPS. **Recommended** |
-| `defaultUser`    | Default user claims used for OAuth2 flows (client credentials, authorization code, refresh token)                   |
+| Field            | Description                                                                                                                                                                                           |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `baseURL`        | The externally-reachable URL of the mock server. Used as the `iss` (issuer) claim in tokens.                                                                                                          |
+| `addr`           | The address to listen on (e.g., `:8080` or `127.0.0.1:8080`)                                                                                                                                          |
+| `signingKeyFile` | Path to RSA private key for JWT signing. If not set, defaults to `jwt-signing.key`. See below.                                                                                                        |
+| `tls`            | Optional TLS configuration. If both `certFile` and `keyFile` are set, the server starts with HTTPS. **Recommended**                                                                                   |
+| `defaultUser`    | Default user claims used for OAuth2 flows (client credentials, authorization code, refresh token)                                                                                                     |
+| `clients`        | Optional map of `client_id` to user claims. When a token is requested, the server looks up the `client_id` and uses the matching user configuration. Falls back to `defaultUser` for unknown clients. |
+
+### Per-Client Users
+
+When a service receives requests from both frontend users and backend services, you may need different token claims for each. The `clients` map allows you to configure a different user for each OAuth client:
+
+```json
+{
+  "defaultUser": { ... },
+  "clients": {
+    "frontend-app": {
+      "sub": "user-1",
+      "name": "Frontend User",
+      "resource_access": { "dashboard": { "roles": ["user"] } }
+    },
+    "backend-service": {
+      "sub": "service-1", 
+      "name": "Service Account",
+      "realm_access": { "roles": ["service"] }
+    }
+  }
+}
+```
+
+- Requests with `client_id=frontend-app` will receive tokens with "Frontend User" claims
+- Requests with `client_id=backend-service` will receive tokens with "Service Account" claims
+- Requests with any other `client_id` will use `defaultUser`
 
 ### Signing Key Persistence
 
