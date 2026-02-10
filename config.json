@@ -1,6 +1,7 @@
 {
     "baseURL": "https://local.streamonkey.net:10101",
     "addr": ":10101",
+    "signingKeyFile": "certs/jwt-signing.key",
     "defaultUser": {
         "sub": "00000000-0000-0000-0000-000000000000",
         "name": "Mock User",

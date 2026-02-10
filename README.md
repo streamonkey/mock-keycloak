@@ -31,8 +31,9 @@ Create a `config.json` file:
 
 ```json
 {
-  "baseURL": "http://localhost:8080",
+  "baseURL": "https://local.streamonkey.net:10101",
   "addr": ":8080",
+  "signingKeyFile": "certs/jwt-signing.key",
   "tls": {
     "certFile": "/path/to/cert.pem",
     "keyFile": "/path/to/key.pem"
@@ -54,12 +55,30 @@ Create a `config.json` file:
 }
 ```
 
-| Field         | Description                                                                                         |
-| ------------- | --------------------------------------------------------------------------------------------------- |
-| `baseURL`     | The externally-reachable URL of the mock server. Used as the `iss` (issuer) claim in tokens.        |
-| `addr`        | The address to listen on (e.g., `:8080` or `127.0.0.1:8080`)                                        |
-| `tls`         | Optional TLS configuration. If both `certFile` and `keyFile` are set, the server starts with HTTPS. |
-| `defaultUser` | Default user claims used for OAuth2 flows (client credentials, authorization code, refresh token)   |
+| Field            | Description                                                                                                         |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `baseURL`        | The externally-reachable URL of the mock server. Used as the `iss` (issuer) claim in tokens.                        |
+| `addr`           | The address to listen on (e.g., `:8080` or `127.0.0.1:8080`)                                                        |
+| `signingKeyFile` | Path to RSA private key for JWT signing. If not set, defaults to `jwt-signing.key`. See below.                      |
+| `tls`            | Optional TLS configuration. If both `certFile` and `keyFile` are set, the server starts with HTTPS. **Recommended** |
+| `defaultUser`    | Default user claims used for OAuth2 flows (client credentials, authorization code, refresh token)                   |
+
+### Signing Key Persistence
+
+The server uses an RSA key pair to sign JWTs. The key is persisted to disk so that the JWKS remains stable across restarts, allowing other services to cache the public key.
+
+**Behavior:**
+- On startup, the server attempts to load the private key from `signingKeyFile`
+- If the file doesn't exist, a new 2048-bit RSA key pair is generated and saved (PKCS#8 PEM format)
+- The key ID (`kid`) is derived deterministically from the public key (SHA-256 hash), ensuring stability
+
+**Generating a key manually:**
+
+```bash
+openssl genpkey -algorithm RSA -out jwt-signing.key -pkeyopt rsa_keygen_bits:2048
+```
+
+The server also accepts PKCS#1 format (`BEGIN RSA PRIVATE KEY`).
 
 ## Endpoints
 
@@ -80,7 +99,7 @@ Create a `config.json` file:
 ### Client Credentials Grant
 
 ```bash
-curl -X POST http://localhost:8080/realms/mock/protocol/openid-connect/token \
+curl -X POST https://local.streamonkey.net:10101/realms/mock/protocol/openid-connect/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "grant_type=client_credentials&client_id=my-service&client_secret=any-secret&scope=openid"
 ```
@@ -116,7 +135,7 @@ Redirects to: `http://localhost:3000/callback#code=...&state=random-state`
 
 Exchange code for tokens:
 ```bash
-curl -X POST http://localhost:8080/realms/mock/protocol/openid-connect/token \
+curl -X POST https://local.streamonkey.net:10101/realms/mock/protocol/openid-connect/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "grant_type=authorization_code&code=<code>&redirect_uri=http://localhost:3000/callback&client_id=my-app&code_verifier=..."
 ```
@@ -140,7 +159,7 @@ Response:
 Generate a token with custom claims:
 
 ```bash
-curl -X POST http://localhost:8080/realms/mock/get-signed-mock-token \
+curl -X POST https://local.streamonkey.net:10101/realms/mock/get-signed-mock-token \
   -H "Content-Type: application/json" \
   -d '{
     "sub": "user-123",
@@ -162,7 +181,7 @@ Access tokens include claims matching Keycloak's format:
 
 ```json
 {
-  "iss": "http://localhost:8080/realms/mock",
+  "iss": "https://local.streamonkey.net:10101/realms/mock",
   "sub": "00000000-0000-0000-0000-000000000000",
   "aud": ["client-id", "account"],
   "exp": 1770384165,
@@ -204,7 +223,7 @@ The repository includes test commands to verify the mock server works correctly:
 
 ```bash
 go run ./cmd/test-client-credentials/ \
-  -issuer http://localhost:8080/realms/mock \
+  -issuer https://local.streamonkey.net:10101/realms/mock \
   -client-id my-client \
   -client-secret any-secret \
   -scopes openid
@@ -217,7 +236,7 @@ This uses `golang.org/x/oauth2` to request a token via the client credentials gr
 ```bash
 go run ./cmd/test-pkce/ \
   -addr :3000 \
-  -keycloak-url http://localhost:8080 \
+  -keycloak-url https://local.streamonkey.net:10101 \
   -client-id my-client
 ```
 

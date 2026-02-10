@@ -36,10 +36,11 @@ func (t TLSConfig) Enabled() bool {
 }
 
 type Config struct {
-	BaseURL     string      `json:"baseURL"`
-	Addr        string      `json:"addr"`
-	TLS         TLSConfig   `json:"tls"`
-	DefaultUser DefaultUser `json:"defaultUser"`
+	BaseURL        string      `json:"baseURL"`
+	Addr           string      `json:"addr"`
+	SigningKeyFile string      `json:"signingKeyFile"`
+	TLS            TLSConfig   `json:"tls"`
+	DefaultUser    DefaultUser `json:"defaultUser"`
 }
 
 // Load reads the configuration from the given JSON file path.
@@ -61,6 +62,10 @@ func Load(path string) Config {
 
 	if cfg.Addr == "" {
 		cfg.Addr = ":8080"
+	}
+
+	if cfg.SigningKeyFile == "" {
+		cfg.SigningKeyFile = "jwt-signing.key"
 	}
 
 	return cfg

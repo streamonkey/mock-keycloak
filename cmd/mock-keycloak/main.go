@@ -41,8 +41,8 @@ func main() {
 
 	cfg := config.Load(configPath)
 
-	// Initialize RSA keys
-	keys.Init()
+	// Initialize RSA keys from file (generates and saves if not exists)
+	keys.InitFromFile(cfg.SigningKeyFile)
 
 	// Register routes (with CORS for browser clients)
 	http.HandleFunc("/realms/mock/.well-known/openid-configuration", cors(handlers.HandleOpenIDConfig(cfg.BaseURL)))
