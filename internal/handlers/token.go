@@ -144,6 +144,11 @@ func handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Request, issuer
 
 func handleClientCredentialsGrant(w http.ResponseWriter, r *http.Request, issuer string, user config.User) {
 	clientID := r.FormValue("client_id")
+	if clientID == "" {
+		if basicID, _, ok := r.BasicAuth(); ok {
+			clientID = basicID
+		}
+	}
 	scope := r.FormValue("scope")
 
 	log.Printf("  -> client_credentials grant: client_id=%s scope=%s user=%s", clientID, scope, user.PreferredUsername)
