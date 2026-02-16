@@ -32,7 +32,7 @@ Create a `config.json` file:
 ```json
 {
   "baseURL": "https://local.streamonkey.net:10101",
-  "addr": ":8080",
+  "addr": ":10101",
   "signingKeyFile": "certs/jwt-signing.key",
   "tls": {
     "certFile": "/path/to/cert.pem",
