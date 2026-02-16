@@ -13,6 +13,8 @@ type AuthCodeData struct {
 	Nonce        string
 	Scope        string
 	ResponseMode string
+	UserIndex    int  // index into config.Users; -1 means not set
+	UserSelected bool // whether a user was explicitly selected
 }
 
 var (

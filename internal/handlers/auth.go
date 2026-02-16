@@ -1,76 +1,176 @@
 package handlers
 
 import (
+	"html/template"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 
 	"gitlab.streamonkey.net/testing/mock-keycloak/internal/authcode"
+	"gitlab.streamonkey.net/testing/mock-keycloak/internal/config"
 )
 
-// HandleAuth returns a handler for the authorization endpoint
-// Supports PKCE flow as used by keycloak-js
-func HandleAuth() http.HandlerFunc {
+// loginPageData is the template data passed to login.html.
+type loginPageData struct {
+	Users  []config.User
+	Params map[string]string
+}
+
+var loginTmpl = template.Must(
+	template.New("login.html").
+		Funcs(template.FuncMap{
+			"initial": func(name string) string {
+				if name == "" {
+					return "?"
+				}
+				return strings.ToUpper(name[:1])
+			},
+		}).
+		Parse(loginHTML),
+)
+
+// HandleAuth returns a handler for the authorization endpoint.
+// When additional users are configured, a GET request renders a user-selection
+// page; otherwise it redirects immediately with an authorization code.
+// A POST request (from the selection page) completes the flow.
+func HandleAuth(cfg config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		query := r.URL.Query()
-
-		// Extract parameters from the authorization request
-		clientID := query.Get("client_id")
-		redirectURI := query.Get("redirect_uri")
-		state := query.Get("state")
-		responseMode := query.Get("response_mode")
-		responseType := query.Get("response_type")
-		scope := query.Get("scope")
-		nonce := query.Get("nonce")
-		// code_challenge and code_challenge_method are sent but we don't validate them
-
-		// Validate required parameters
-		if responseType != "code" {
-			http.Error(w, "unsupported_response_type", http.StatusBadRequest)
-			return
+		switch r.Method {
+		case http.MethodGet:
+			handleAuthGet(w, r, cfg)
+		case http.MethodPost:
+			handleAuthPost(w, r, cfg)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
-
-		if redirectURI == "" {
-			http.Error(w, "missing redirect_uri", http.StatusBadRequest)
-			return
-		}
-
-		// Default response mode to fragment (as keycloak-js uses)
-		if responseMode == "" {
-			responseMode = "fragment"
-		}
-
-		// Generate authorization code and store metadata
-		code := authcode.Generate(authcode.AuthCodeData{
-			ClientID:     clientID,
-			RedirectURI:  redirectURI,
-			Nonce:        nonce,
-			Scope:        scope,
-			ResponseMode: responseMode,
-		})
-
-		// Build redirect URL
-		redirectURL, err := url.Parse(redirectURI)
-		if err != nil {
-			http.Error(w, "invalid redirect_uri", http.StatusBadRequest)
-			return
-		}
-
-		// Build response parameters
-		params := url.Values{}
-		params.Set("code", code)
-		if state != "" {
-			params.Set("state", state)
-		}
-
-		// Apply parameters based on response_mode
-		if responseMode == "fragment" {
-			redirectURL.Fragment = params.Encode()
-		} else {
-			// query mode
-			redirectURL.RawQuery = params.Encode()
-		}
-
-		// Redirect to the client
-		http.Redirect(w, r, redirectURL.String(), http.StatusFound)
 	}
+}
+
+// handleAuthGet validates the authorization request and either shows the
+// user-selection page or redirects immediately.
+func handleAuthGet(w http.ResponseWriter, r *http.Request, cfg config.Config) {
+	query := r.URL.Query()
+
+	responseType := query.Get("response_type")
+	redirectURI := query.Get("redirect_uri")
+
+	if responseType != "code" {
+		http.Error(w, "unsupported_response_type", http.StatusBadRequest)
+		return
+	}
+	if redirectURI == "" {
+		http.Error(w, "missing redirect_uri", http.StatusBadRequest)
+		return
+	}
+
+	// If more than one user is configured, show the selection page.
+	if len(cfg.Users) > 1 {
+		renderLoginPage(w, r, cfg)
+		return
+	}
+
+	// Single user — redirect immediately.
+	finishAuth(w, r, 0, true, query)
+}
+
+// handleAuthPost is called when the user selects an account on the login page.
+func handleAuthPost(w http.ResponseWriter, r *http.Request, cfg config.Config) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	selectedIndex, err := strconv.Atoi(r.FormValue("selected_user_index"))
+	if err != nil || selectedIndex < 0 || selectedIndex >= len(cfg.Users) {
+		http.Error(w, "invalid user selection", http.StatusBadRequest)
+		return
+	}
+	responseType := r.FormValue("response_type")
+	redirectURI := r.FormValue("redirect_uri")
+
+	if responseType != "code" {
+		http.Error(w, "unsupported_response_type", http.StatusBadRequest)
+		return
+	}
+	if redirectURI == "" {
+		http.Error(w, "missing redirect_uri", http.StatusBadRequest)
+		return
+	}
+
+	// Re-pack form values into url.Values so finishAuth can read them.
+	params := url.Values{}
+	for k, vs := range r.Form {
+		for _, v := range vs {
+			params.Set(k, v)
+		}
+	}
+
+	finishAuth(w, r, selectedIndex, true, params)
+}
+
+// renderLoginPage renders the user-selection page.
+func renderLoginPage(w http.ResponseWriter, r *http.Request, cfg config.Config) {
+	// Carry all original query parameters as hidden form fields.
+	params := make(map[string]string)
+	for k, vs := range r.URL.Query() {
+		if len(vs) > 0 {
+			params[k] = vs[0]
+		}
+	}
+
+	data := loginPageData{
+		Users:  cfg.Users,
+		Params: params,
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := loginTmpl.Execute(w, data); err != nil {
+		http.Error(w, "failed to render login page", http.StatusInternalServerError)
+	}
+}
+
+// finishAuth generates an authorization code, stores it, and redirects the
+// client to the redirect_uri with the code and state.
+func finishAuth(w http.ResponseWriter, r *http.Request, userIndex int, userSelected bool, params url.Values) {
+	clientID := params.Get("client_id")
+	redirectURI := params.Get("redirect_uri")
+	state := params.Get("state")
+	responseMode := params.Get("response_mode")
+	nonce := params.Get("nonce")
+	scope := params.Get("scope")
+
+	if responseMode == "" {
+		responseMode = "fragment"
+	}
+
+	code := authcode.Generate(authcode.AuthCodeData{
+		ClientID:     clientID,
+		RedirectURI:  redirectURI,
+		Nonce:        nonce,
+		Scope:        scope,
+		ResponseMode: responseMode,
+		UserIndex:    userIndex,
+		UserSelected: userSelected,
+	})
+
+	redirectURL, err := url.Parse(redirectURI)
+	if err != nil {
+		http.Error(w, "invalid redirect_uri", http.StatusBadRequest)
+		return
+	}
+
+	rp := url.Values{}
+	rp.Set("code", code)
+	if state != "" {
+		rp.Set("state", state)
+	}
+
+	if responseMode == "fragment" {
+		redirectURL.Fragment = rp.Encode()
+	} else {
+		redirectURL.RawQuery = rp.Encode()
+	}
+
+	http.Redirect(w, r, redirectURL.String(), http.StatusFound)
 }

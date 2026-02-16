@@ -51,7 +51,7 @@ func main() {
 	http.HandleFunc("/realms/mock/protocol/openid-connect/login-status-iframe.html/init", cors(handlers.HandleIframeInit()))
 	http.HandleFunc("/realms/mock/protocol/openid-connect/3p-cookies/step1.html", handlers.Handle3pCookiesStep1())
 	http.HandleFunc("/realms/mock/protocol/openid-connect/3p-cookies/step2.html", handlers.Handle3pCookiesStep2())
-	http.HandleFunc("/realms/mock/protocol/openid-connect/auth", handlers.HandleAuth())
+	http.HandleFunc("/realms/mock/protocol/openid-connect/auth", handlers.HandleAuth(cfg))
 	http.HandleFunc("/realms/mock/protocol/openid-connect/token", cors(handlers.HandleToken(cfg.BaseURL, cfg)))
 	http.HandleFunc("/realms/mock/protocol/openid-connect/logout", cors(handlers.HandleLogout()))
 	http.HandleFunc("/realms/mock/get-signed-mock-token", cors(handlers.HandleGetToken(cfg.BaseURL)))

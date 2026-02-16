@@ -2,7 +2,6 @@ package main
 
 import (
 	"embed"
-	"flag"
 	"fmt"
 	"html/template"
 	"log"
@@ -18,13 +17,11 @@ type PageData struct {
 	RedirectURI string
 }
 
-func main() {
-	// Command line flags
-	addr := flag.String("addr", ":3000", "Address to listen on")
-	keycloakURL := flag.String("keycloak-url", "http://localhost:8080", "Keycloak base URL")
-	clientID := flag.String("client-id", "test-client", "OAuth2 client ID")
-	flag.Parse()
+const addr = ":3000"
+const keycloakURL = "https://local.streamonkey.net:10101"
+const clientID = "test-client"
 
+func main() {
 	// Parse template
 	tmpl, err := template.ParseFS(content, "index.html")
 	if err != nil {
@@ -44,8 +41,8 @@ func main() {
 		redirectURI := fmt.Sprintf("%s://%s/", scheme, r.Host)
 
 		data := PageData{
-			KeycloakURL: *keycloakURL,
-			ClientID:    *clientID,
+			KeycloakURL: keycloakURL,
+			ClientID:    clientID,
 			RedirectURI: redirectURI,
 		}
 
@@ -55,12 +52,12 @@ func main() {
 		}
 	})
 
-	log.Printf("Starting test PKCE client on %s", *addr)
-	log.Printf("Keycloak URL: %s", *keycloakURL)
-	log.Printf("Client ID: %s", *clientID)
-	log.Printf("Open http://localhost%s in your browser", *addr)
+	log.Printf("Starting test PKCE client on %s", addr)
+	log.Printf("Keycloak URL: %s", keycloakURL)
+	log.Printf("Client ID: %s", clientID)
+	log.Printf("Open https://local.streamonkey.net%s in your browser", addr)
 
-	if err := http.ListenAndServe(*addr, nil); err != nil {
+	if err := http.ListenAndServeTLS(addr, "certs/local.streamonkey.net.crt", "certs/local.streamonkey.net.key", nil); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }

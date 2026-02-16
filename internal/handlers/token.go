@@ -47,14 +47,15 @@ func HandleToken(baseURL string, cfg config.Config) http.HandlerFunc {
 
 		grantType := r.FormValue("grant_type")
 		clientID := r.FormValue("client_id")
-		user := cfg.GetUserForClient(clientID)
 
 		switch grantType {
 		case "authorization_code":
-			handleAuthorizationCodeGrant(w, r, issuer, user)
+			handleAuthorizationCodeGrant(w, r, issuer, cfg)
 		case "client_credentials":
+			user := cfg.GetUserForClient(clientID)
 			handleClientCredentialsGrant(w, r, issuer, user)
 		case "refresh_token":
+			user := cfg.GetUserForClient(clientID)
 			handleRefreshTokenGrant(w, r, issuer, user)
 		default:
 			writeTokenError(w, "unsupported_grant_type", "grant_type must be authorization_code, client_credentials, or refresh_token")
@@ -62,7 +63,7 @@ func HandleToken(baseURL string, cfg config.Config) http.HandlerFunc {
 	}
 }
 
-func handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Request, issuer string, user config.DefaultUser) {
+func handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Request, issuer string, cfg config.Config) {
 	code := r.FormValue("code")
 	clientID := r.FormValue("client_id")
 	// code_verifier is sent but we don't validate it
@@ -72,6 +73,15 @@ func handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Request, issuer
 	if !ok {
 		writeTokenError(w, "invalid_grant", "invalid or expired authorization code")
 		return
+	}
+
+	// Resolve user: if a user was selected during authorization, use the
+	// stored index; otherwise fall back to the per-client / default user.
+	var user config.User
+	if codeData.UserSelected && codeData.UserIndex >= 0 && codeData.UserIndex < len(cfg.Users) {
+		user = cfg.Users[codeData.UserIndex]
+	} else {
+		user = cfg.GetUserForClient(clientID)
 	}
 
 	// Build token request from user config
@@ -114,7 +124,7 @@ func handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Request, issuer
 	})
 }
 
-func handleClientCredentialsGrant(w http.ResponseWriter, r *http.Request, issuer string, user config.DefaultUser) {
+func handleClientCredentialsGrant(w http.ResponseWriter, r *http.Request, issuer string, user config.User) {
 	clientID := r.FormValue("client_id")
 	scope := r.FormValue("scope")
 
@@ -138,7 +148,7 @@ func handleClientCredentialsGrant(w http.ResponseWriter, r *http.Request, issuer
 	})
 }
 
-func handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, issuer string, user config.DefaultUser) {
+func handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, issuer string, user config.User) {
 	clientID := r.FormValue("client_id")
 	// refresh_token is sent but we don't validate it - always return new tokens
 
@@ -184,7 +194,7 @@ func handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, issuer stri
 	})
 }
 
-func buildTokenRequest(user config.DefaultUser, clientID string, scope string) token.Request {
+func buildTokenRequest(user config.User, clientID string, scope string) token.Request {
 	return token.Request{
 		Sub:               user.Sub,
 		Azp:               clientID,

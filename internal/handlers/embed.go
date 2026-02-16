@@ -9,3 +9,6 @@ var loginStatusIframeHTML string
 
 //go:embed 3p-cookies-iframe.html
 var thirdPartyCookiesIframeHTML string
+
+//go:embed login.html
+var loginHTML string

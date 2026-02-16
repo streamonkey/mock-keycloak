@@ -10,8 +10,8 @@ type RoleAccess struct {
 	Roles []string `json:"roles"`
 }
 
-// DefaultUser represents the default user claims for generated tokens
-type DefaultUser struct {
+// User represents user claims for generated tokens
+type User struct {
 	Sub               string                `json:"sub"`
 	Name              string                `json:"name"`
 	Email             string                `json:"email"`
@@ -36,21 +36,21 @@ func (t TLSConfig) Enabled() bool {
 }
 
 type Config struct {
-	BaseURL        string                 `json:"baseURL"`
-	Addr           string                 `json:"addr"`
-	SigningKeyFile string                 `json:"signingKeyFile"`
-	TLS            TLSConfig              `json:"tls"`
-	DefaultUser    DefaultUser            `json:"defaultUser"`
-	Clients        map[string]DefaultUser `json:"clients"`
+	BaseURL        string          `json:"baseURL"`
+	Addr           string          `json:"addr"`
+	SigningKeyFile string          `json:"signingKeyFile"`
+	TLS            TLSConfig       `json:"tls"`
+	Users          []User          `json:"users"`
+	Clients        map[string]User `json:"clients"`
 }
 
 // GetUserForClient returns the user configuration for the given client ID.
-// Falls back to DefaultUser if the client is not explicitly configured.
-func (c Config) GetUserForClient(clientID string) DefaultUser {
+// Falls back to the first user if the client is not explicitly configured.
+func (c Config) GetUserForClient(clientID string) User {
 	if user, ok := c.Clients[clientID]; ok {
 		return user
 	}
-	return c.DefaultUser
+	return c.Users[0]
 }
 
 // Load reads the configuration from the given JSON file path.
@@ -76,6 +76,10 @@ func Load(path string) Config {
 
 	if cfg.SigningKeyFile == "" {
 		cfg.SigningKeyFile = "jwt-signing.key"
+	}
+
+	if len(cfg.Users) == 0 {
+		panic("at least one user must be configured in the users array")
 	}
 
 	return cfg
