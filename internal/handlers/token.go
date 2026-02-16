@@ -49,6 +49,14 @@ func HandleToken(baseURL string, cfg config.Config) http.HandlerFunc {
 		grantType := r.FormValue("grant_type")
 		clientID := r.FormValue("client_id")
 
+		// Fall back to HTTP Basic Authentication for client_id/client_secret
+		// (as per RFC 6749 Section 2.3.1)
+		if clientID == "" {
+			if basicID, _, ok := r.BasicAuth(); ok {
+				clientID = basicID
+			}
+		}
+
 		log.Printf("  -> token request: grant_type=%s client_id=%s", grantType, clientID)
 
 		switch grantType {
