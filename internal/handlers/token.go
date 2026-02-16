@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"gitlab.streamonkey.net/testing/mock-keycloak/internal/authcode"
@@ -48,6 +49,8 @@ func HandleToken(baseURL string, cfg config.Config) http.HandlerFunc {
 		grantType := r.FormValue("grant_type")
 		clientID := r.FormValue("client_id")
 
+		log.Printf("  -> token request: grant_type=%s client_id=%s", grantType, clientID)
+
 		switch grantType {
 		case "authorization_code":
 			handleAuthorizationCodeGrant(w, r, issuer, cfg)
@@ -66,14 +69,20 @@ func HandleToken(baseURL string, cfg config.Config) http.HandlerFunc {
 func handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Request, issuer string, cfg config.Config) {
 	code := r.FormValue("code")
 	clientID := r.FormValue("client_id")
+	redirectURI := r.FormValue("redirect_uri")
 	// code_verifier is sent but we don't validate it
+
+	log.Printf("  -> authorization_code grant: code=%s client_id=%s redirect_uri=%s", code, clientID, redirectURI)
 
 	// Consume the authorization code
 	codeData, ok := authcode.Consume(code)
 	if !ok {
+		log.Printf("  -> authorization_code grant: invalid or expired code=%s", code)
 		writeTokenError(w, "invalid_grant", "invalid or expired authorization code")
 		return
 	}
+
+	log.Printf("  -> authorization_code grant: code consumed, user_index=%d scope=%s nonce=%s", codeData.UserIndex, codeData.Scope, codeData.Nonce)
 
 	// Resolve user: if a user was selected during authorization, use the
 	// stored index; otherwise fall back to the per-client / default user.
@@ -122,11 +131,14 @@ func handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Request, issuer
 		SessionState:     sessionState,
 		Scope:            codeData.Scope,
 	})
+	log.Printf("  -> authorization_code grant: issued tokens for sub=%s (access_token=%s)", req.Sub, accessToken)
 }
 
 func handleClientCredentialsGrant(w http.ResponseWriter, r *http.Request, issuer string, user config.User) {
 	clientID := r.FormValue("client_id")
 	scope := r.FormValue("scope")
+
+	log.Printf("  -> client_credentials grant: client_id=%s scope=%s user=%s", clientID, scope, user.PreferredUsername)
 
 	// Build token request from user config
 	req := buildTokenRequest(user, clientID, scope)
@@ -146,11 +158,15 @@ func handleClientCredentialsGrant(w http.ResponseWriter, r *http.Request, issuer
 		SessionState:    token.GenerateSessionID(),
 		Scope:           scope,
 	})
+	log.Printf("  -> client_credentials grant: issued access_token=%s", accessToken)
 }
 
 func handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, issuer string, user config.User) {
 	clientID := r.FormValue("client_id")
+	refreshTokenValue := r.FormValue("refresh_token")
 	// refresh_token is sent but we don't validate it - always return new tokens
+
+	log.Printf("  -> refresh_token grant: client_id=%s user=%s refresh_token=%s", clientID, user.PreferredUsername, refreshTokenValue)
 
 	scope := "openid"
 
@@ -192,6 +208,7 @@ func handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, issuer stri
 		SessionState:     sessionState,
 		Scope:            scope,
 	})
+	log.Printf("  -> refresh_token grant: issued new tokens for sub=%s (access_token=%s)", req.Sub, accessToken)
 }
 
 func buildTokenRequest(user config.User, clientID string, scope string) token.Request {

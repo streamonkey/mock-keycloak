@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"html/template"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -54,6 +55,10 @@ func handleAuthGet(w http.ResponseWriter, r *http.Request, cfg config.Config) {
 
 	responseType := query.Get("response_type")
 	redirectURI := query.Get("redirect_uri")
+	clientID := query.Get("client_id")
+	scope := query.Get("scope")
+
+	log.Printf("  -> auth GET: client_id=%s response_type=%s redirect_uri=%s scope=%s", clientID, responseType, redirectURI, scope)
 
 	if responseType != "code" {
 		http.Error(w, "unsupported_response_type", http.StatusBadRequest)
@@ -66,11 +71,13 @@ func handleAuthGet(w http.ResponseWriter, r *http.Request, cfg config.Config) {
 
 	// If more than one user is configured, show the selection page.
 	if len(cfg.Users) > 1 {
+		log.Printf("  -> auth: showing user selection page (%d users)", len(cfg.Users))
 		renderLoginPage(w, r, cfg)
 		return
 	}
 
 	// Single user — redirect immediately.
+	log.Printf("  -> auth: single user configured, redirecting immediately")
 	finishAuth(w, r, 0, true, query)
 }
 
@@ -83,9 +90,12 @@ func handleAuthPost(w http.ResponseWriter, r *http.Request, cfg config.Config) {
 
 	selectedIndex, err := strconv.Atoi(r.FormValue("selected_user_index"))
 	if err != nil || selectedIndex < 0 || selectedIndex >= len(cfg.Users) {
+		log.Printf("  -> auth POST: invalid user selection: %s", r.FormValue("selected_user_index"))
 		http.Error(w, "invalid user selection", http.StatusBadRequest)
 		return
 	}
+
+	log.Printf("  -> auth POST: user selected index=%d (name=%s)", selectedIndex, cfg.Users[selectedIndex].PreferredUsername)
 	responseType := r.FormValue("response_type")
 	redirectURI := r.FormValue("redirect_uri")
 
@@ -153,6 +163,8 @@ func finishAuth(w http.ResponseWriter, r *http.Request, userIndex int, userSelec
 		UserIndex:    userIndex,
 		UserSelected: userSelected,
 	})
+
+	log.Printf("  -> auth: generated code=%s for client_id=%s redirect_uri=%s response_mode=%s", code, clientID, redirectURI, responseMode)
 
 	redirectURL, err := url.Parse(redirectURI)
 	if err != nil {

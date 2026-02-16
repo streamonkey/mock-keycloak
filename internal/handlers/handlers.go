@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"gitlab.streamonkey.net/testing/mock-keycloak/internal/keys"
@@ -46,6 +47,7 @@ func HandleOpenIDConfig(baseURL string) http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("  -> serving OpenID configuration (issuer=%s)", realmURL)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(config)
 	}
@@ -54,6 +56,7 @@ func HandleOpenIDConfig(baseURL string) http.HandlerFunc {
 // HandleJWKS returns a handler for the JWKS endpoint
 func HandleJWKS() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("  -> serving JWKS (key_id=%s)", keys.GetKeyID())
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(keys.GetJWKS())
 	}
@@ -70,6 +73,7 @@ func HandleLoginStatusIframe() http.HandlerFunc {
 // HandleIframeInit returns a handler for the iframe init endpoint
 func HandleIframeInit() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("  -> iframe init (204 No Content)")
 		// Always return 204 No Content to indicate the client is allowed
 		w.WriteHeader(http.StatusNoContent)
 	}
@@ -94,8 +98,8 @@ func Handle3pCookiesStep2() http.HandlerFunc {
 // HandleLogout returns a handler for the logout/end session endpoint
 func HandleLogout() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Get the post_logout_redirect_uri from query params
 		redirectURI := r.URL.Query().Get("post_logout_redirect_uri")
+		log.Printf("  -> logout request (post_logout_redirect_uri=%s)", redirectURI)
 		if redirectURI == "" {
 			// If no redirect URI, just return 200 OK
 			w.WriteHeader(http.StatusOK)
@@ -120,15 +124,21 @@ func HandleGetToken(baseURL string) http.HandlerFunc {
 
 		var req token.Request
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			log.Printf("  -> get-signed-mock-token: invalid request body: %v", err)
 			http.Error(w, "invalid request body: "+err.Error(), http.StatusBadRequest)
 			return
 		}
 
+		log.Printf("  -> get-signed-mock-token: sub=%s azp=%s scope=%s", req.Sub, req.Azp, req.Scope)
+
 		tokenString, err := token.Generate(req, issuer, keys.GetPrivateKey(), keys.GetKeyID())
 		if err != nil {
+			log.Printf("  -> get-signed-mock-token: failed to generate token: %v", err)
 			http.Error(w, "failed to generate token: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		log.Printf("  -> get-signed-mock-token: generated token (%d chars)", len(tokenString))
 
 		w.Header().Set("Content-Type", "text/plain")
 		w.Write([]byte(tokenString))

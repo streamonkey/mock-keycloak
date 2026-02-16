@@ -10,6 +10,18 @@ import (
 	"gitlab.streamonkey.net/testing/mock-keycloak/internal/keys"
 )
 
+// logRequest wraps a handler to log every incoming request with method, path, and query
+func logRequest(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.RawQuery != "" {
+			log.Printf("%s %s?%s (from %s)", r.Method, r.URL.Path, r.URL.RawQuery, r.RemoteAddr)
+		} else {
+			log.Printf("%s %s (from %s)", r.Method, r.URL.Path, r.RemoteAddr)
+		}
+		next(w, r)
+	}
+}
+
 // cors wraps a handler to add CORS headers for browser clients
 func cors(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -24,6 +36,7 @@ func cors(next http.HandlerFunc) http.HandlerFunc {
 
 		// Handle preflight requests
 		if r.Method == http.MethodOptions {
+			log.Printf("  -> CORS preflight response (204)")
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
@@ -44,17 +57,17 @@ func main() {
 	// Initialize RSA keys from file (generates and saves if not exists)
 	keys.InitFromFile(cfg.SigningKeyFile)
 
-	// Register routes (with CORS for browser clients)
-	http.HandleFunc("/realms/mock/.well-known/openid-configuration", cors(handlers.HandleOpenIDConfig(cfg.BaseURL)))
-	http.HandleFunc("/realms/mock/protocol/openid-connect/certs", cors(handlers.HandleJWKS()))
-	http.HandleFunc("/realms/mock/protocol/openid-connect/login-status-iframe.html", handlers.HandleLoginStatusIframe())
-	http.HandleFunc("/realms/mock/protocol/openid-connect/login-status-iframe.html/init", cors(handlers.HandleIframeInit()))
-	http.HandleFunc("/realms/mock/protocol/openid-connect/3p-cookies/step1.html", handlers.Handle3pCookiesStep1())
-	http.HandleFunc("/realms/mock/protocol/openid-connect/3p-cookies/step2.html", handlers.Handle3pCookiesStep2())
-	http.HandleFunc("/realms/mock/protocol/openid-connect/auth", handlers.HandleAuth(cfg))
-	http.HandleFunc("/realms/mock/protocol/openid-connect/token", cors(handlers.HandleToken(cfg.BaseURL, cfg)))
-	http.HandleFunc("/realms/mock/protocol/openid-connect/logout", cors(handlers.HandleLogout()))
-	http.HandleFunc("/realms/mock/get-signed-mock-token", cors(handlers.HandleGetToken(cfg.BaseURL)))
+	// Register routes (with CORS for browser clients, all wrapped in request logging)
+	http.HandleFunc("/realms/mock/.well-known/openid-configuration", logRequest(cors(handlers.HandleOpenIDConfig(cfg.BaseURL))))
+	http.HandleFunc("/realms/mock/protocol/openid-connect/certs", logRequest(cors(handlers.HandleJWKS())))
+	http.HandleFunc("/realms/mock/protocol/openid-connect/login-status-iframe.html", logRequest(handlers.HandleLoginStatusIframe()))
+	http.HandleFunc("/realms/mock/protocol/openid-connect/login-status-iframe.html/init", logRequest(cors(handlers.HandleIframeInit())))
+	http.HandleFunc("/realms/mock/protocol/openid-connect/3p-cookies/step1.html", logRequest(handlers.Handle3pCookiesStep1()))
+	http.HandleFunc("/realms/mock/protocol/openid-connect/3p-cookies/step2.html", logRequest(handlers.Handle3pCookiesStep2()))
+	http.HandleFunc("/realms/mock/protocol/openid-connect/auth", logRequest(handlers.HandleAuth(cfg)))
+	http.HandleFunc("/realms/mock/protocol/openid-connect/token", logRequest(cors(handlers.HandleToken(cfg.BaseURL, cfg))))
+	http.HandleFunc("/realms/mock/protocol/openid-connect/logout", logRequest(cors(handlers.HandleLogout())))
+	http.HandleFunc("/realms/mock/get-signed-mock-token", logRequest(cors(handlers.HandleGetToken(cfg.BaseURL))))
 
 	log.Printf("Starting mock-keycloak server on %s", cfg.Addr)
 	log.Printf("Base URL: %s", cfg.BaseURL)
