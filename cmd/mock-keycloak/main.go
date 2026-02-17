@@ -70,6 +70,12 @@ func main() {
 	http.HandleFunc("/realms/mock/account", logRequest(cors(handlers.HandleAccount(cfg.BaseURL, cfg))))
 	http.HandleFunc("/realms/mock/get-signed-mock-token", logRequest(cors(handlers.HandleGetToken(cfg.BaseURL))))
 
+	// health check endpoint
+	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
 	log.Printf("Starting mock-keycloak server on %s", cfg.Addr)
 	log.Printf("Base URL: %s", cfg.BaseURL)
 	log.Printf("Issuer: %s/realms/mock", cfg.BaseURL)
