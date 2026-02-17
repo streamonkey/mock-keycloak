@@ -67,6 +67,7 @@ func main() {
 	http.HandleFunc("/realms/mock/protocol/openid-connect/auth", logRequest(handlers.HandleAuth(cfg)))
 	http.HandleFunc("/realms/mock/protocol/openid-connect/token", logRequest(cors(handlers.HandleToken(cfg.BaseURL, cfg))))
 	http.HandleFunc("/realms/mock/protocol/openid-connect/logout", logRequest(cors(handlers.HandleLogout())))
+	http.HandleFunc("/realms/mock/account", logRequest(cors(handlers.HandleAccount(cfg.BaseURL, cfg))))
 	http.HandleFunc("/realms/mock/get-signed-mock-token", logRequest(cors(handlers.HandleGetToken(cfg.BaseURL))))
 
 	log.Printf("Starting mock-keycloak server on %s", cfg.Addr)

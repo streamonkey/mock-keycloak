@@ -118,8 +118,13 @@
         </div>
     </div>
 
+    <div class="card" id="profileCard" style="display: none;">
+        <h2>User Profile</h2>
+        <div id="profileStatus" class="status info">Loading...</div>
+        <pre id="profilePayload"></pre>
+    </div>
+
     <div class="card" id="tokenCard" style="display: none;">
-        <h2>Token Information</h2>
         <h3>Access Token Payload</h3>
         <pre id="tokenPayload"></pre>
         <h3>ID Token Payload</h3>
@@ -167,7 +172,11 @@
                     id_token: keycloak.idToken,
                     refresh_token: keycloak.refreshToken
                 }, null, 2)
+
+                // Load user profile from /realms/mock/account
+                loadUserProfile()
             } else {
+                document.getElementById('profileCard').style.display = 'none'
                 setStatus('❌ Not authenticated', 'error')
                 loginBtn.disabled = false
                 logoutBtn.disabled = true
@@ -182,6 +191,26 @@
 
         function logout() {
             keycloak.logout()
+        }
+
+        async function loadUserProfile() {
+            const profileCard = document.getElementById('profileCard')
+            const profileStatus = document.getElementById('profileStatus')
+            const profilePayload = document.getElementById('profilePayload')
+            profileCard.style.display = 'block'
+            profileStatus.textContent = 'Loading user profile...'
+            profileStatus.className = 'status info'
+            try {
+                const profile = await keycloak.loadUserProfile()
+                profileStatus.textContent = '✅ User profile loaded'
+                profileStatus.className = 'status success'
+                profilePayload.textContent = JSON.stringify(profile, null, 2)
+            } catch (error) {
+                profileStatus.textContent = '❌ Failed to load user profile: ' + error
+                profileStatus.className = 'status error'
+                profilePayload.textContent = ''
+                console.error('loadUserProfile failed:', error)
+            }
         }
 
         function refreshToken() {
@@ -201,6 +230,7 @@
         window.login = login
         window.logout = logout
         window.refreshToken = refreshToken
+        window.loadUserProfile = loadUserProfile
 
         // Initialize Keycloak
         keycloak.init({

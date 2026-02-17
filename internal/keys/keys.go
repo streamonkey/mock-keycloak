@@ -113,6 +113,11 @@ func GetPrivateKey() *rsa.PrivateKey {
 	return privateKey
 }
 
+// GetPublicKey returns the public key corresponding to the private key
+func GetPublicKey() *rsa.PublicKey {
+	return &privateKey.PublicKey
+}
+
 // GetKeyID returns the key ID
 func GetKeyID() string {
 	return keyID
