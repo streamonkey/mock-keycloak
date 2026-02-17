@@ -5,6 +5,8 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/golang-jwt/jwt/v5"
+
 	"gitlab.streamonkey.net/testing/mock-keycloak/internal/authcode"
 	"gitlab.streamonkey.net/testing/mock-keycloak/internal/config"
 	"gitlab.streamonkey.net/testing/mock-keycloak/internal/keys"
@@ -66,8 +68,7 @@ func HandleToken(baseURL, realm string, cfg config.Config) http.HandlerFunc {
 			user := cfg.GetUserForClient(clientID)
 			handleClientCredentialsGrant(w, r, issuer, user)
 		case "refresh_token":
-			user := cfg.GetUserForClient(clientID)
-			handleRefreshTokenGrant(w, r, issuer, user)
+			handleRefreshTokenGrant(w, r, issuer, cfg)
 		default:
 			writeTokenError(w, "unsupported_grant_type", "grant_type must be authorization_code, client_credentials, or refresh_token")
 		}
@@ -179,20 +180,48 @@ func handleClientCredentialsGrant(w http.ResponseWriter, r *http.Request, issuer
 	log.Printf("  -> client_credentials grant: issued access_token=%s", accessToken)
 }
 
-func handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, issuer string, user config.User) {
+func handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, issuer string, cfg config.Config) {
 	clientID := r.FormValue("client_id")
 	refreshTokenValue := r.FormValue("refresh_token")
-	// refresh_token is sent but we don't validate it - always return new tokens
 
-	log.Printf("  -> refresh_token grant: client_id=%s user=%s refresh_token=%s", clientID, user.PreferredUsername, refreshTokenValue)
+	log.Printf("  -> refresh_token grant: client_id=%s refresh_token=%s", clientID, refreshTokenValue)
+
+	// Parse the incoming refresh token to extract the original user (sub) and
+	// session ID (sid). This ensures the refreshed tokens are issued for the
+	// same user and session, matching real Keycloak behaviour.
+	var claims token.RefreshTokenClaims
+	_, err := jwt.ParseWithClaims(refreshTokenValue, &claims, func(t *jwt.Token) (interface{}, error) {
+		return keys.GetPublicKey(), nil
+	})
+	if err != nil {
+		log.Printf("  -> refresh_token grant: failed to parse refresh token: %v", err)
+		writeTokenError(w, "invalid_grant", "invalid or expired refresh token")
+		return
+	}
+
+	sub, _ := claims.GetSubject()
+	user, found := cfg.GetUserBySub(sub)
+	if !found {
+		log.Printf("  -> refresh_token grant: no user found for sub=%s", sub)
+		writeTokenError(w, "invalid_grant", "unknown subject in refresh token")
+		return
+	}
+
+	log.Printf("  -> refresh_token grant: resolved user=%s sid=%s", user.PreferredUsername, claims.Sid)
 
 	scope := "openid"
 
-	// Build token request from user config
-	req := buildTokenRequest(user, clientID, scope, "")
+	// Reuse the session ID from the original refresh token so that the
+	// session_state stays stable across refreshes. This prevents the
+	// keycloak-js login-status-iframe from detecting a spurious session
+	// change that would ultimately clear the refresh token on the client.
+	sessionState := claims.Sid
+	if sessionState == "" {
+		sessionState = token.GenerateSessionID()
+	}
 
-	// Generate session state
-	sessionState := token.GenerateSessionID()
+	// Build token request from user config
+	req := buildTokenRequest(user, clientID, scope, sessionState)
 
 	// Generate new access token
 	accessToken, err := token.Generate(req, issuer, keys.GetPrivateKey(), keys.GetKeyID())

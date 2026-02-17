@@ -214,15 +214,17 @@
         }
 
         function refreshToken() {
-            keycloak.updateToken(30).then(function (refreshed) {
+            // force refresh, because it will always expire within 10000 seconds
+            keycloak.updateToken(10000).then(function (refreshed) {
                 if (refreshed) {
                     setStatus('✅ Token refreshed successfully', 'success')
                     updateUI()
                 } else {
                     setStatus('✅ Token still valid', 'success')
                 }
-            }).catch(function () {
+            }).catch(function (error) {
                 setStatus('❌ Failed to refresh token', 'error')
+                console.error('Token refresh failed:', error)
             })
         }
 
@@ -253,7 +255,13 @@
             keycloak.updateToken(30).catch(function () {
                 setStatus('❌ Token expired and refresh failed', 'error')
             })
-        };
+        }
+
+        // log any errors
+        keycloak.onAuthError = function (errorData) {
+            console.error('Authentication error:', errorData)
+            setStatus('❌ Authentication error: ' + JSON.stringify(errorData), 'error')
+        }
     </script>
 </body>
 

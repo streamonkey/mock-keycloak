@@ -54,6 +54,17 @@ func (c Config) GetUserForClient(clientID string) User {
 	return c.Users[0]
 }
 
+// GetUserBySub returns the user with the given subject ID and true if found,
+// or a zero User and false if no user matches.
+func (c Config) GetUserBySub(sub string) (User, bool) {
+	for _, u := range c.Users {
+		if u.Sub == sub {
+			return u, true
+		}
+	}
+	return User{}, false
+}
+
 // Load reads the configuration from the given JSON file path.
 // Panics if the file cannot be read or parsed.
 func Load(path string) Config {
