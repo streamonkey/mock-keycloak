@@ -83,7 +83,7 @@ func HandleIframeInit() http.HandlerFunc {
 func Handle3pCookiesStep1() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write([]byte(thirdPartyCookiesIframeHTML))
+		w.Write([]byte(thirdPartyCookiesStep1HTML))
 	}
 }
 
@@ -91,7 +91,7 @@ func Handle3pCookiesStep1() http.HandlerFunc {
 func Handle3pCookiesStep2() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write([]byte(thirdPartyCookiesIframeHTML))
+		w.Write([]byte(thirdPartyCookiesStep2HTML))
 	}
 }
 
