@@ -82,5 +82,34 @@ func Load(path string) Config {
 		panic("at least one user must be configured in the users array")
 	}
 
+	// Normalize nil slices to empty slices so they marshal as [] instead of null.
+	for i := range cfg.Users {
+		normalizeUser(&cfg.Users[i])
+	}
+	for k, v := range cfg.Clients {
+		normalizeUser(&v)
+		cfg.Clients[k] = v
+	}
+
 	return cfg
+}
+
+// normalizeUser ensures all slice fields are non-nil so they marshal as []
+// instead of null in JSON.
+func normalizeUser(u *User) {
+	if u.Groups == nil {
+		u.Groups = []string{}
+	}
+	if u.RealmAccess.Roles == nil {
+		u.RealmAccess.Roles = []string{}
+	}
+	if u.ResourceAccess == nil {
+		u.ResourceAccess = map[string]RoleAccess{}
+	}
+	for k, ra := range u.ResourceAccess {
+		if ra.Roles == nil {
+			ra.Roles = []string{}
+			u.ResourceAccess[k] = ra
+		}
+	}
 }
