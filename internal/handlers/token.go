@@ -31,8 +31,8 @@ type TokenErrorResponse struct {
 }
 
 // HandleToken returns a handler for the token endpoint
-func HandleToken(baseURL string, cfg config.Config) http.HandlerFunc {
-	issuer := baseURL + "/realms/mock"
+func HandleToken(baseURL, realm string, cfg config.Config) http.HandlerFunc {
+	issuer := baseURL + "/realms/" + realm
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

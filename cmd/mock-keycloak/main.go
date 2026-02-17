@@ -58,17 +58,18 @@ func main() {
 	keys.InitFromFile(cfg.SigningKeyFile)
 
 	// Register routes (with CORS for browser clients, all wrapped in request logging)
-	http.HandleFunc("/realms/mock/.well-known/openid-configuration", logRequest(cors(handlers.HandleOpenIDConfig(cfg.BaseURL))))
-	http.HandleFunc("/realms/mock/protocol/openid-connect/certs", logRequest(cors(handlers.HandleJWKS())))
-	http.HandleFunc("/realms/mock/protocol/openid-connect/login-status-iframe.html", logRequest(handlers.HandleLoginStatusIframe()))
-	http.HandleFunc("/realms/mock/protocol/openid-connect/login-status-iframe.html/init", logRequest(cors(handlers.HandleIframeInit())))
-	http.HandleFunc("/realms/mock/protocol/openid-connect/3p-cookies/step1.html", logRequest(handlers.Handle3pCookiesStep1()))
-	http.HandleFunc("/realms/mock/protocol/openid-connect/3p-cookies/step2.html", logRequest(handlers.Handle3pCookiesStep2()))
-	http.HandleFunc("/realms/mock/protocol/openid-connect/auth", logRequest(handlers.HandleAuth(cfg)))
-	http.HandleFunc("/realms/mock/protocol/openid-connect/token", logRequest(cors(handlers.HandleToken(cfg.BaseURL, cfg))))
-	http.HandleFunc("/realms/mock/protocol/openid-connect/logout", logRequest(cors(handlers.HandleLogout())))
-	http.HandleFunc("/realms/mock/account", logRequest(cors(handlers.HandleAccount(cfg.BaseURL, cfg))))
-	http.HandleFunc("/realms/mock/get-signed-mock-token", logRequest(cors(handlers.HandleGetToken(cfg.BaseURL))))
+	realm := "/realms/" + cfg.Realm
+	http.HandleFunc(realm+"/.well-known/openid-configuration", logRequest(cors(handlers.HandleOpenIDConfig(cfg.BaseURL, cfg.Realm))))
+	http.HandleFunc(realm+"/protocol/openid-connect/certs", logRequest(cors(handlers.HandleJWKS())))
+	http.HandleFunc(realm+"/protocol/openid-connect/login-status-iframe.html", logRequest(handlers.HandleLoginStatusIframe()))
+	http.HandleFunc(realm+"/protocol/openid-connect/login-status-iframe.html/init", logRequest(cors(handlers.HandleIframeInit())))
+	http.HandleFunc(realm+"/protocol/openid-connect/3p-cookies/step1.html", logRequest(handlers.Handle3pCookiesStep1()))
+	http.HandleFunc(realm+"/protocol/openid-connect/3p-cookies/step2.html", logRequest(handlers.Handle3pCookiesStep2()))
+	http.HandleFunc(realm+"/protocol/openid-connect/auth", logRequest(handlers.HandleAuth(cfg)))
+	http.HandleFunc(realm+"/protocol/openid-connect/token", logRequest(cors(handlers.HandleToken(cfg.BaseURL, cfg.Realm, cfg))))
+	http.HandleFunc(realm+"/protocol/openid-connect/logout", logRequest(cors(handlers.HandleLogout())))
+	http.HandleFunc(realm+"/account", logRequest(cors(handlers.HandleAccount(cfg.BaseURL, cfg))))
+	http.HandleFunc(realm+"/get-signed-mock-token", logRequest(cors(handlers.HandleGetToken(cfg.BaseURL, cfg.Realm))))
 
 	// health check endpoint
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -78,7 +79,8 @@ func main() {
 
 	log.Printf("Starting mock-keycloak server on %s", cfg.Addr)
 	log.Printf("Base URL: %s", cfg.BaseURL)
-	log.Printf("Issuer: %s/realms/mock", cfg.BaseURL)
+	log.Printf("Realm: %s", cfg.Realm)
+	log.Printf("Issuer: %s/realms/%s", cfg.BaseURL, cfg.Realm)
 
 	var err error
 	if cfg.TLS.Enabled() {

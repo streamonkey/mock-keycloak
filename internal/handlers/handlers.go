@@ -27,8 +27,8 @@ type OpenIDConfiguration struct {
 }
 
 // HandleOpenIDConfig returns a handler for the OpenID Connect discovery endpoint
-func HandleOpenIDConfig(baseURL string) http.HandlerFunc {
-	realmURL := baseURL + "/realms/mock"
+func HandleOpenIDConfig(baseURL, realm string) http.HandlerFunc {
+	realmURL := baseURL + "/realms/" + realm
 
 	config := OpenIDConfiguration{
 		Issuer:                            realmURL,
@@ -117,8 +117,8 @@ func HandleLogout() http.HandlerFunc {
 }
 
 // HandleGetToken returns a handler for the mock token generation endpoint
-func HandleGetToken(baseURL string) http.HandlerFunc {
-	issuer := baseURL + "/realms/mock"
+func HandleGetToken(baseURL, realm string) http.HandlerFunc {
+	issuer := baseURL + "/realms/" + realm
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

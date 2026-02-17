@@ -4,7 +4,7 @@ This repository contains a Go application that implements API endpoints that moc
 
 This is helpful for E2E tests where we need a valid token from an issuer that is signed, but don't want to deal with logging in or managing test user roles.
 
-The realm is hardcoded to be "mock".
+The realm name defaults to `"mock"` but is configurable via `config.json`.
 
 ## Features
 
@@ -33,6 +33,7 @@ Create a `config.json` file:
 {
   "baseURL": "https://local.streamonkey.net:10101",
   "addr": ":10101",
+  "realm": "mock",
   "signingKeyFile": "certs/jwt-signing.key",
   "tls": {
     "certFile": "/path/to/cert.pem",
@@ -93,6 +94,7 @@ Create a `config.json` file:
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `baseURL`        | The externally-reachable URL of the mock server. Used as the `iss` (issuer) claim in tokens.                                                                                                           |
 | `addr`           | The address to listen on (e.g., `:8080` or `127.0.0.1:8080`)                                                                                                                                           |
+| `realm`          | The Keycloak realm name used in URL paths and the issuer claim. Defaults to `"mock"`.                                                                                                                  |
 | `signingKeyFile` | Path to RSA private key for JWT signing. If not set, defaults to `jwt-signing.key`. See below.                                                                                                         |
 | `tls`            | Optional TLS configuration. If both `certFile` and `keyFile` are set, the server starts with HTTPS. **Recommended**                                                                                    |
 | `users`          | **Required.** Array of user objects (at least one). The first user is the default fallback. When multiple users are configured, the PKCE flow shows a user-selection page.                             |
@@ -171,17 +173,19 @@ The server also accepts PKCS#1 format (`BEGIN RSA PRIVATE KEY`).
 
 ## Endpoints
 
-| Endpoint                                                        | Method   | Description                                                            |
-| --------------------------------------------------------------- | -------- | ---------------------------------------------------------------------- |
-| `/realms/mock/.well-known/openid-configuration`                 | GET      | OpenID Connect discovery document                                      |
-| `/realms/mock/protocol/openid-connect/certs`                    | GET      | JWKS endpoint with public keys                                         |
-| `/realms/mock/protocol/openid-connect/auth`                     | GET/POST | Authorization endpoint (PKCE flow) - shows user selection or redirects |
-| `/realms/mock/protocol/openid-connect/token`                    | POST     | Token endpoint (authorization_code, client_credentials, refresh_token) |
-| `/realms/mock/protocol/openid-connect/logout`                   | GET      | Logout endpoint - redirects to post_logout_redirect_uri if provided    |
-| `/realms/mock/protocol/openid-connect/login-status-iframe.html` | GET      | Session status iframe for keycloak-js (always returns "unchanged")     |
-| `/realms/mock/protocol/openid-connect/3p-cookies/step1.html`    | GET      | 3rd-party cookie check step 1 (always returns "supported")             |
-| `/realms/mock/protocol/openid-connect/3p-cookies/step2.html`    | GET      | 3rd-party cookie check step 2 (always returns "supported")             |
-| `/realms/mock/get-signed-mock-token`                            | POST     | Custom endpoint to generate tokens with specific claims                |
+All endpoints are served under `/realms/{realm}/`, where `{realm}` is the configured realm name (default: `mock`).
+
+| Endpoint                                                           | Method   | Description                                                            |
+| ------------------------------------------------------------------ | -------- | ---------------------------------------------------------------------- |
+| `/realms/{realm}/.well-known/openid-configuration`                 | GET      | OpenID Connect discovery document                                      |
+| `/realms/{realm}/protocol/openid-connect/certs`                    | GET      | JWKS endpoint with public keys                                         |
+| `/realms/{realm}/protocol/openid-connect/auth`                     | GET/POST | Authorization endpoint (PKCE flow) - shows user selection or redirects |
+| `/realms/{realm}/protocol/openid-connect/token`                    | POST     | Token endpoint (authorization_code, client_credentials, refresh_token) |
+| `/realms/{realm}/protocol/openid-connect/logout`                   | GET      | Logout endpoint - redirects to post_logout_redirect_uri if provided    |
+| `/realms/{realm}/protocol/openid-connect/login-status-iframe.html` | GET      | Session status iframe for keycloak-js (always returns "unchanged")     |
+| `/realms/{realm}/protocol/openid-connect/3p-cookies/step1.html`    | GET      | 3rd-party cookie check step 1 (always returns "supported")             |
+| `/realms/{realm}/protocol/openid-connect/3p-cookies/step2.html`    | GET      | 3rd-party cookie check step 2 (always returns "supported")             |
+| `/realms/{realm}/get-signed-mock-token`                            | POST     | Custom endpoint to generate tokens with specific claims                |
 
 ## Usage Examples
 
@@ -270,7 +274,7 @@ Access tokens include claims matching Keycloak's format:
 
 ```json
 {
-  "iss": "https://local.streamonkey.net:10101/realms/mock",
+  "iss": "https://local.streamonkey.net:10101/realms/{realm}",
   "sub": "00000000-0000-0000-0000-000000000000",
   "aud": ["client-id", "account"],
   "exp": 1770384165,

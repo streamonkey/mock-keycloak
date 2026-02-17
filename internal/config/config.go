@@ -38,6 +38,7 @@ func (t TLSConfig) Enabled() bool {
 type Config struct {
 	BaseURL        string          `json:"baseURL"`
 	Addr           string          `json:"addr"`
+	Realm          string          `json:"realm"`
 	SigningKeyFile string          `json:"signingKeyFile"`
 	TLS            TLSConfig       `json:"tls"`
 	Users          []User          `json:"users"`
@@ -68,6 +69,10 @@ func Load(path string) Config {
 
 	if cfg.BaseURL == "" {
 		panic("baseURL is required in config")
+	}
+
+	if cfg.Realm == "" {
+		cfg.Realm = "mock"
 	}
 
 	if cfg.Addr == "" {
