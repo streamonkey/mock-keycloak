@@ -12,6 +12,7 @@ type Request struct {
 	Sub               string                `json:"sub"`
 	Azp               string                `json:"azp"`
 	Aud               []string              `json:"aud"`
+	Sid               string                `json:"sid,omitempty"` // session ID; if empty, a random one is generated
 	AllowedOrigins    []string              `json:"allowed_origins"`
 	RealmAccess       RoleAccess            `json:"realm_access"`
 	ResourceAccess    map[string]RoleAccess `json:"resource_access"`

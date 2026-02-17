@@ -18,6 +18,11 @@ func Generate(req Request, issuer string, privateKey *rsa.PrivateKey, kid string
 		expSeconds = 300
 	}
 
+	sid := req.Sid
+	if sid == "" {
+		sid = GenerateSessionID()
+	}
+
 	claims := KeycloakClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    issuer,
@@ -30,7 +35,7 @@ func Generate(req Request, issuer string, privateKey *rsa.PrivateKey, kid string
 		AuthTime:          now.Unix(),
 		Typ:               "Bearer",
 		Azp:               req.Azp,
-		Sid:               GenerateSessionID(),
+		Sid:               sid,
 		Acr:               "0",
 		AllowedOrigins:    req.AllowedOrigins,
 		RealmAccess:       req.RealmAccess,
@@ -60,6 +65,11 @@ func GenerateIDToken(req Request, issuer string, privateKey *rsa.PrivateKey, kid
 		expSeconds = 300
 	}
 
+	idSid := req.Sid
+	if idSid == "" {
+		idSid = GenerateSessionID()
+	}
+
 	claims := IDTokenClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    issuer,
@@ -72,7 +82,7 @@ func GenerateIDToken(req Request, issuer string, privateKey *rsa.PrivateKey, kid
 		AuthTime:          now.Unix(),
 		Typ:               "ID",
 		Azp:               clientID,
-		Sid:               GenerateSessionID(),
+		Sid:               idSid,
 		Acr:               "0",
 		Nonce:             nonce,
 		EmailVerified:     req.EmailVerified,

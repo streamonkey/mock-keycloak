@@ -90,7 +90,7 @@ func handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Request, issuer
 		return
 	}
 
-	log.Printf("  -> authorization_code grant: code consumed, user_index=%d scope=%s nonce=%s", codeData.UserIndex, codeData.Scope, codeData.Nonce)
+	log.Printf("  -> authorization_code grant: code consumed, user_index=%d scope=%s nonce=%s session_state=%s", codeData.UserIndex, codeData.Scope, codeData.Nonce, codeData.SessionState)
 
 	// Resolve user: if a user was selected during authorization, use the
 	// stored index; otherwise fall back to the per-client / default user.
@@ -101,11 +101,16 @@ func handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Request, issuer
 		user = cfg.GetUserForClient(clientID)
 	}
 
-	// Build token request from user config
-	req := buildTokenRequest(user, clientID, codeData.Scope)
+	// Use the session state from the authorization endpoint so that the
+	// token's "sid" claim matches the session cookie. This is critical for
+	// the login-status-iframe check in keycloak-js.
+	sessionState := codeData.SessionState
+	if sessionState == "" {
+		sessionState = token.GenerateSessionID()
+	}
 
-	// Generate session state
-	sessionState := token.GenerateSessionID()
+	// Build token request from user config
+	req := buildTokenRequest(user, clientID, codeData.Scope, sessionState)
 
 	// Generate access token
 	accessToken, err := token.Generate(req, issuer, keys.GetPrivateKey(), keys.GetKeyID())
@@ -154,7 +159,7 @@ func handleClientCredentialsGrant(w http.ResponseWriter, r *http.Request, issuer
 	log.Printf("  -> client_credentials grant: client_id=%s scope=%s user=%s", clientID, scope, user.PreferredUsername)
 
 	// Build token request from user config
-	req := buildTokenRequest(user, clientID, scope)
+	req := buildTokenRequest(user, clientID, scope, "")
 
 	// Generate access token only (no refresh token or ID token for client credentials)
 	accessToken, err := token.Generate(req, issuer, keys.GetPrivateKey(), keys.GetKeyID())
@@ -184,7 +189,7 @@ func handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, issuer stri
 	scope := "openid"
 
 	// Build token request from user config
-	req := buildTokenRequest(user, clientID, scope)
+	req := buildTokenRequest(user, clientID, scope, "")
 
 	// Generate session state
 	sessionState := token.GenerateSessionID()
@@ -224,11 +229,12 @@ func handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, issuer stri
 	log.Printf("  -> refresh_token grant: issued new tokens for sub=%s (access_token=%s)", req.Sub, accessToken)
 }
 
-func buildTokenRequest(user config.User, clientID string, scope string) token.Request {
+func buildTokenRequest(user config.User, clientID string, scope string, sid string) token.Request {
 	return token.Request{
 		Sub:               user.Sub,
 		Azp:               clientID,
 		Aud:               []string{clientID, "account"},
+		Sid:               sid,
 		Scope:             scope,
 		EmailVerified:     user.EmailVerified,
 		Name:              user.Name,

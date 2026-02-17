@@ -213,6 +213,7 @@ func finishAuth(w http.ResponseWriter, r *http.Request, userIndex int, userSelec
 		Nonce:        nonce,
 		Scope:        scope,
 		ResponseMode: responseMode,
+		SessionState: sessionState,
 		UserIndex:    userIndex,
 		UserSelected: userSelected,
 	})
