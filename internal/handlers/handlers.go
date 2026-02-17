@@ -100,6 +100,10 @@ func HandleLogout() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		redirectURI := r.URL.Query().Get("post_logout_redirect_uri")
 		log.Printf("  -> logout request (post_logout_redirect_uri=%s)", redirectURI)
+
+		// Clear the session cookie so the next auth request requires re-login.
+		clearSessionCookie(w)
+
 		if redirectURI == "" {
 			// If no redirect URI, just return 200 OK
 			w.WriteHeader(http.StatusOK)

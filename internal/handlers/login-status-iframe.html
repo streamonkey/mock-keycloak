@@ -7,10 +7,32 @@
 
 <body>
   <script>
-    // Mock session iframe - always returns "unchanged" to indicate session is valid
+    function getSessionState() {
+      var cookies = document.cookie.split(";")
+      for (var i = 0; i < cookies.length; i++) {
+        var c = cookies[i].trim()
+        if (c.indexOf("MOCK_KEYCLOAK_SESSION=") === 0) {
+          var value = c.substring("MOCK_KEYCLOAK_SESSION=".length)
+          var parts = value.split("/")
+          if (parts.length === 2) {
+            return parts[1]
+          }
+        }
+      }
+      return null
+    }
+
     window.addEventListener("message", function (event) {
       if (typeof event.data === "string" && event.data.split(" ").length === 2) {
-        event.source.postMessage("unchanged", event.origin)
+        var parts = event.data.split(" ")
+        var receivedSessionState = parts[1]
+        var cookieSessionState = getSessionState()
+
+        if (cookieSessionState && cookieSessionState === receivedSessionState) {
+          event.source.postMessage("unchanged", event.origin)
+        } else {
+          event.source.postMessage("changed", event.origin)
+        }
       }
     });
   </script>

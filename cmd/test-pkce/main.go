@@ -11,6 +11,9 @@ import (
 //go:embed index.html
 var content embed.FS
 
+//go:embed silent-check-sso.html
+var silentCheckSSOHTML string
+
 type PageData struct {
 	KeycloakURL string
 	ClientID    string
@@ -50,6 +53,12 @@ func main() {
 		if err := tmpl.Execute(w, data); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
+	})
+
+	// Serve the silent check SSO page used by keycloak-js for check-sso in a hidden iframe
+	http.HandleFunc("/silent-check-sso.html", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(silentCheckSSOHTML))
 	})
 
 	log.Printf("Starting test PKCE client on %s", addr)

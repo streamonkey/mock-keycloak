@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
 	"gitlab.streamonkey.net/testing/mock-keycloak/internal/authcode"
 	"gitlab.streamonkey.net/testing/mock-keycloak/internal/config"
 )
@@ -66,6 +67,24 @@ func handleAuthGet(w http.ResponseWriter, r *http.Request, cfg config.Config) {
 	}
 	if redirectURI == "" {
 		http.Error(w, "missing redirect_uri", http.StatusBadRequest)
+		return
+	}
+
+	prompt := query.Get("prompt")
+
+	// Check for an existing session.
+	sessionUserIndex, _, hasSession := getSessionCookie(r)
+	if hasSession && sessionUserIndex >= 0 && sessionUserIndex < len(cfg.Users) {
+		log.Printf("  -> auth: existing session found for user index=%d (name=%s)",
+			sessionUserIndex, cfg.Users[sessionUserIndex].PreferredUsername)
+		finishAuth(w, r, sessionUserIndex, true, query)
+		return
+	}
+
+	// No session — handle prompt=none (silent SSO check).
+	if prompt == "none" {
+		log.Printf("  -> auth: prompt=none but no session, returning login_required")
+		redirectLoginRequired(w, r, query)
 		return
 	}
 
@@ -140,8 +159,39 @@ func renderLoginPage(w http.ResponseWriter, r *http.Request, cfg config.Config) 
 	}
 }
 
-// finishAuth generates an authorization code, stores it, and redirects the
-// client to the redirect_uri with the code and state.
+// redirectLoginRequired redirects to the redirect_uri with error=login_required.
+// Used when prompt=none is requested but no session exists.
+func redirectLoginRequired(w http.ResponseWriter, r *http.Request, params url.Values) {
+	redirectURI := params.Get("redirect_uri")
+	state := params.Get("state")
+	responseMode := params.Get("response_mode")
+	if responseMode == "" {
+		responseMode = "fragment"
+	}
+
+	redirectURL, err := url.Parse(redirectURI)
+	if err != nil {
+		http.Error(w, "invalid redirect_uri", http.StatusBadRequest)
+		return
+	}
+
+	rp := url.Values{}
+	rp.Set("error", "login_required")
+	if state != "" {
+		rp.Set("state", state)
+	}
+
+	if responseMode == "fragment" {
+		redirectURL.Fragment = rp.Encode()
+	} else {
+		redirectURL.RawQuery = rp.Encode()
+	}
+
+	http.Redirect(w, r, redirectURL.String(), http.StatusFound)
+}
+
+// finishAuth generates an authorization code, stores it, sets the session
+// cookie, and redirects the client to the redirect_uri with the code and state.
 func finishAuth(w http.ResponseWriter, r *http.Request, userIndex int, userSelected bool, params url.Values) {
 	clientID := params.Get("client_id")
 	redirectURI := params.Get("redirect_uri")
@@ -154,6 +204,9 @@ func finishAuth(w http.ResponseWriter, r *http.Request, userIndex int, userSelec
 		responseMode = "fragment"
 	}
 
+	// Generate a session state identifier for this auth session.
+	sessionState := uuid.New().String()
+
 	code := authcode.Generate(authcode.AuthCodeData{
 		ClientID:     clientID,
 		RedirectURI:  redirectURI,
@@ -164,7 +217,10 @@ func finishAuth(w http.ResponseWriter, r *http.Request, userIndex int, userSelec
 		UserSelected: userSelected,
 	})
 
-	log.Printf("  -> auth: generated code=%s for client_id=%s redirect_uri=%s response_mode=%s", code, clientID, redirectURI, responseMode)
+	log.Printf("  -> auth: generated code=%s for client_id=%s redirect_uri=%s response_mode=%s session_state=%s", code, clientID, redirectURI, responseMode, sessionState)
+
+	// Set session cookie so subsequent requests auto-select this user.
+	setSessionCookie(w, userIndex, sessionState)
 
 	redirectURL, err := url.Parse(redirectURI)
 	if err != nil {
@@ -177,6 +233,7 @@ func finishAuth(w http.ResponseWriter, r *http.Request, userIndex int, userSelec
 	if state != "" {
 		rp.Set("state", state)
 	}
+	rp.Set("session_state", sessionState)
 
 	if responseMode == "fragment" {
 		redirectURL.Fragment = rp.Encode()
