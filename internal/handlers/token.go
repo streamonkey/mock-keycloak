@@ -67,10 +67,13 @@ func HandleToken(baseURL, realm string, cfg config.Config) http.HandlerFunc {
 		case "client_credentials":
 			user := cfg.GetUserForClient(clientID)
 			handleClientCredentialsGrant(w, r, issuer, user)
+		case "password":
+			handlePasswordGrant(w, r, issuer, cfg)
 		case "refresh_token":
 			handleRefreshTokenGrant(w, r, issuer, cfg)
 		default:
-			writeTokenError(w, "unsupported_grant_type", "grant_type must be authorization_code, client_credentials, or refresh_token")
+			log.Printf("  -> token request: unsupported grant_type=%s", grantType)
+			writeTokenError(w, "unsupported_grant_type", "grant_type must be authorization_code, client_credentials, password, or refresh_token")
 		}
 	}
 }
@@ -128,7 +131,7 @@ func handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Request, issuer
 	}
 
 	// Generate refresh token
-	refreshToken, err := token.GenerateRefreshToken(req.Sub, issuer, keys.GetPrivateKey(), keys.GetKeyID(), sessionState)
+	refreshToken, err := token.GenerateRefreshToken(req.Sub, issuer, keys.GetPrivateKey(), keys.GetKeyID(), sessionState, req.RefreshExp())
 	if err != nil {
 		writeTokenError(w, "server_error", "failed to generate refresh token")
 		return
@@ -137,9 +140,9 @@ func handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Request, issuer
 	writeTokenResponse(w, TokenResponse{
 		AccessToken:      accessToken,
 		TokenType:        "Bearer",
-		ExpiresIn:        300,
+		ExpiresIn:        req.AccessExp(),
 		RefreshToken:     refreshToken,
-		RefreshExpiresIn: 1800,
+		RefreshExpiresIn: req.RefreshExp(),
 		IDToken:          idToken,
 		NotBeforePolicy:  0,
 		SessionState:     sessionState,
@@ -172,12 +175,66 @@ func handleClientCredentialsGrant(w http.ResponseWriter, r *http.Request, issuer
 	writeTokenResponse(w, TokenResponse{
 		AccessToken:     accessToken,
 		TokenType:       "Bearer",
-		ExpiresIn:       300,
+		ExpiresIn:       req.AccessExp(),
 		NotBeforePolicy: 0,
 		SessionState:    token.GenerateSessionID(),
 		Scope:           scope,
 	})
 	log.Printf("  -> client_credentials grant: issued access_token=%s", accessToken)
+}
+
+func handlePasswordGrant(w http.ResponseWriter, r *http.Request, issuer string, cfg config.Config) {
+	clientID := r.FormValue("client_id")
+	username := r.FormValue("username")
+	scope := r.FormValue("scope")
+
+	log.Printf("  -> password grant: client_id=%s username=%s scope=%s", clientID, username, scope)
+
+	user, found := cfg.GetUserByUsername(username)
+	if !found {
+		log.Printf("  -> password grant: no user found for username=%s", username)
+		writeTokenError(w, "invalid_grant", "invalid user credentials")
+		return
+	}
+
+	sessionState := token.GenerateSessionID()
+
+	// Build token request from user config
+	req := buildTokenRequest(user, clientID, scope, sessionState)
+
+	// Generate access token
+	accessToken, err := token.Generate(req, issuer, keys.GetPrivateKey(), keys.GetKeyID())
+	if err != nil {
+		writeTokenError(w, "server_error", "failed to generate access token")
+		return
+	}
+
+	// Generate ID token (no nonce for password grant)
+	idToken, err := token.GenerateIDToken(req, issuer, keys.GetPrivateKey(), keys.GetKeyID(), clientID, "")
+	if err != nil {
+		writeTokenError(w, "server_error", "failed to generate id token")
+		return
+	}
+
+	// Generate refresh token
+	refreshToken, err := token.GenerateRefreshToken(req.Sub, issuer, keys.GetPrivateKey(), keys.GetKeyID(), sessionState, req.RefreshExp())
+	if err != nil {
+		writeTokenError(w, "server_error", "failed to generate refresh token")
+		return
+	}
+
+	writeTokenResponse(w, TokenResponse{
+		AccessToken:      accessToken,
+		TokenType:        "Bearer",
+		ExpiresIn:        req.AccessExp(),
+		RefreshToken:     refreshToken,
+		RefreshExpiresIn: req.RefreshExp(),
+		IDToken:          idToken,
+		NotBeforePolicy:  0,
+		SessionState:     sessionState,
+		Scope:            scope,
+	})
+	log.Printf("  -> password grant: issued tokens for sub=%s (access_token=%s)", req.Sub, accessToken)
 }
 
 func handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, issuer string, cfg config.Config) {
@@ -238,7 +295,7 @@ func handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, issuer stri
 	}
 
 	// Generate new refresh token
-	refreshToken, err := token.GenerateRefreshToken(req.Sub, issuer, keys.GetPrivateKey(), keys.GetKeyID(), sessionState)
+	refreshToken, err := token.GenerateRefreshToken(req.Sub, issuer, keys.GetPrivateKey(), keys.GetKeyID(), sessionState, req.RefreshExp())
 	if err != nil {
 		writeTokenError(w, "server_error", "failed to generate refresh token")
 		return
@@ -247,9 +304,9 @@ func handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, issuer stri
 	writeTokenResponse(w, TokenResponse{
 		AccessToken:      accessToken,
 		TokenType:        "Bearer",
-		ExpiresIn:        300,
+		ExpiresIn:        req.AccessExp(),
 		RefreshToken:     refreshToken,
-		RefreshExpiresIn: 1800,
+		RefreshExpiresIn: req.RefreshExp(),
 		IDToken:          idToken,
 		NotBeforePolicy:  0,
 		SessionState:     sessionState,
@@ -274,7 +331,6 @@ func buildTokenRequest(user config.User, clientID string, scope string, sid stri
 		Email:             user.Email,
 		RealmAccess:       token.RoleAccess{Roles: user.RealmAccess.Roles},
 		ResourceAccess:    convertResourceAccess(user.ResourceAccess),
-		ExpSeconds:        300,
 	}
 }
 

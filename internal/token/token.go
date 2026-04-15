@@ -12,11 +12,7 @@ import (
 func Generate(req Request, issuer string, privateKey *rsa.PrivateKey, kid string) (string, error) {
 	now := time.Now()
 
-	// Default expiration to 5 minutes if not specified
-	expSeconds := req.ExpSeconds
-	if expSeconds == 0 {
-		expSeconds = 300
-	}
+	expSeconds := req.AccessExp()
 
 	sid := req.Sid
 	if sid == "" {
@@ -60,10 +56,7 @@ func Generate(req Request, issuer string, privateKey *rsa.PrivateKey, kid string
 func GenerateIDToken(req Request, issuer string, privateKey *rsa.PrivateKey, kid string, clientID string, nonce string) (string, error) {
 	now := time.Now()
 
-	expSeconds := req.ExpSeconds
-	if expSeconds == 0 {
-		expSeconds = 300
-	}
+	expSeconds := req.AccessExp()
 
 	idSid := req.Sid
 	if idSid == "" {
@@ -100,14 +93,14 @@ func GenerateIDToken(req Request, issuer string, privateKey *rsa.PrivateKey, kid
 }
 
 // GenerateRefreshToken creates a signed JWT refresh token
-func GenerateRefreshToken(sub string, issuer string, privateKey *rsa.PrivateKey, kid string, sessionState string) (string, error) {
+func GenerateRefreshToken(sub string, issuer string, privateKey *rsa.PrivateKey, kid string, sessionState string, expSeconds int64) (string, error) {
 	now := time.Now()
 
 	claims := RefreshTokenClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    issuer,
 			Subject:   sub,
-			ExpiresAt: jwt.NewNumericDate(now.Add(30 * time.Minute)),
+			ExpiresAt: jwt.NewNumericDate(now.Add(time.Duration(expSeconds) * time.Second)),
 			IssuedAt:  jwt.NewNumericDate(now),
 			ID:        "onrtac:" + uuid.New().String(),
 		},

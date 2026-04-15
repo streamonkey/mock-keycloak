@@ -65,6 +65,17 @@ func (c Config) GetUserBySub(sub string) (User, bool) {
 	return User{}, false
 }
 
+// GetUserByUsername returns the user with the given preferred_username and true
+// if found, or a zero User and false if no user matches.
+func (c Config) GetUserByUsername(username string) (User, bool) {
+	for _, u := range c.Users {
+		if u.PreferredUsername == username {
+			return u, true
+		}
+	}
+	return User{}, false
+}
+
 // Load reads the configuration from the given JSON file path.
 // Panics if the file cannot be read or parsed.
 func Load(path string) Config {

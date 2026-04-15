@@ -1,6 +1,16 @@
 package token
 
-import "github.com/golang-jwt/jwt/v5"
+import (
+	"strings"
+
+	"github.com/golang-jwt/jwt/v5"
+)
+
+const (
+	defaultAccessExp  int64 = 300     // 5 minutes
+	defaultRefreshExp int64 = 1800    // 30 minutes
+	offlineRefreshExp int64 = 2592000 // 30 days
+)
 
 // RoleAccess represents a set of roles for a resource
 type RoleAccess struct {
@@ -24,7 +34,23 @@ type Request struct {
 	GivenName         string                `json:"given_name"`
 	FamilyName        string                `json:"family_name"`
 	Email             string                `json:"email"`
-	ExpSeconds        int64                 `json:"exp_seconds"`
+}
+
+// AccessExp returns the access token expiration in seconds.
+func (r Request) AccessExp() int64 {
+	return defaultAccessExp
+}
+
+// RefreshExp returns the refresh token expiration in seconds.
+// When the scope includes "offline_access", a much longer lifetime (30 days)
+// is used to match Keycloak's offline token behaviour.
+func (r Request) RefreshExp() int64 {
+	for _, s := range strings.Fields(r.Scope) {
+		if s == "offline_access" {
+			return offlineRefreshExp
+		}
+	}
+	return defaultRefreshExp
 }
 
 // KeycloakClaims represents the full JWT claims for a Keycloak access token
