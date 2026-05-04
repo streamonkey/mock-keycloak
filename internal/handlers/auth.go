@@ -204,8 +204,22 @@ func finishAuth(w http.ResponseWriter, r *http.Request, userIndex int, userSelec
 		responseMode = "fragment"
 	}
 
-	// Generate a session state identifier for this auth session.
-	sessionState := uuid.New().String()
+	// Reuse the session state from the existing session cookie when the same
+	// user is re-authenticating (e.g., on a page refresh, in another tab, or
+	// via keycloak-js's silent re-auth). Real Keycloak keeps the session_state
+	// stable for the lifetime of a browser session; regenerating it on every
+	// /auth request causes keycloak-js's login-status-iframe to report
+	// "changed" in any already-authenticated tab, which calls clearToken() ->
+	// login() (because loginRequired=true) and redirects back to /auth, where
+	// we again generate a new UUID and invalidate the next tab — producing an
+	// indefinite redirect loop between tabs.
+	cookieUserIndex, cookieSessionState, hasSession := getSessionCookie(r)
+	var sessionState string
+	if hasSession && cookieUserIndex == userIndex && cookieSessionState != "" {
+		sessionState = cookieSessionState
+	} else {
+		sessionState = uuid.New().String()
+	}
 
 	code := authcode.Generate(authcode.AuthCodeData{
 		ClientID:     clientID,
