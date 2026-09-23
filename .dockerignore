@@ -1,0 +1,7 @@
+.git
+.direnv
+certs
+# binaries from `go build` at the repo root (the CI job writes mock-keycloak)
+/mock-keycloak
+/test-client-credentials
+/test-pkce

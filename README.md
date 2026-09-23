@@ -25,6 +25,39 @@ By default, reads configuration from `config.json`. Override with `CONFIG_PATH` 
 CONFIG_PATH=/path/to/config.json go run ./cmd/mock-keycloak/
 ```
 
+## Running in Docker
+
+```bash
+docker build -t mock-keycloak .
+docker run --rm -p 10101:10101 -v "$PWD/my-config.json:/config/config.json:ro" mock-keycloak
+```
+
+The mounted config must set `"addr": ":10101"`: the image exposes 10101 and the examples here map and health-check that port, while the server's default is `:8080`. Its `baseURL` must be the URL clients use to reach the container (for the command above, `http://localhost:10101`), because it becomes the tokens' `iss`.
+
+The image reads its config from `/config/config.json` (`CONFIG_PATH`) and runs as a non-root user (uid 10001) with `/data` as its working directory. A relative `signingKeyFile` (the default is `jwt-signing.key`) therefore resolves into `/data`, and so do relative `tls` paths. Mount a volume at `/data` to keep the signing key, and with it the JWKS, stable when the container is recreated. The server creates the key file on first start but not its directory: a `signingKeyFile` of `certs/jwt-signing.key` needs `/data/certs` to exist and be writable by uid 10001.
+
+A compose file can build the image straight from git, without a local checkout:
+
+```yaml
+services:
+  keycloak:
+    build:
+      context: git@gitlab.streamonkey.net:testing/mock-keycloak.git#master
+    ports:
+      - "127.0.0.1:10101:10101"
+    volumes:
+      - ./mock-keycloak.json:/config/config.json:ro
+      - mock-keycloak-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:10101/healthz"]
+      interval: 5s
+
+volumes:
+  mock-keycloak-data:
+```
+
+BuildKit clones the repository over SSH using the host's SSH agent (`$SSH_AUTH_SOCK`), so the agent needs a key with access to the repository. The healthcheck calls the busybox `wget` of the alpine base image and assumes a plain-HTTP config (no `tls` block).
+
 ## Configuration
 
 Create a `config.json` file:
@@ -181,6 +214,8 @@ All endpoints are served under `/realms/{realm}/`, where `{realm}` is the config
 | `/realms/{realm}/protocol/openid-connect/certs`                    | GET      | JWKS endpoint with public keys                                         |
 | `/realms/{realm}/protocol/openid-connect/auth`                     | GET/POST | Authorization endpoint (PKCE flow) - shows user selection or redirects |
 | `/realms/{realm}/protocol/openid-connect/token`                    | POST     | Token endpoint (authorization_code, client_credentials, refresh_token) |
+| `/realms/{realm}/protocol/openid-connect/token/introspect`         | POST     | Token introspection (RFC 7662) - the token's claims, or `active:false` |
+| `/realms/{realm}/protocol/openid-connect/userinfo`                 | GET/POST | OIDC userinfo - profile claims from the Bearer access token            |
 | `/realms/{realm}/protocol/openid-connect/logout`                   | GET      | Logout endpoint - redirects to post_logout_redirect_uri if provided    |
 | `/realms/{realm}/protocol/openid-connect/login-status-iframe.html` | GET      | Session status iframe for keycloak-js (always returns "unchanged")     |
 | `/realms/{realm}/protocol/openid-connect/3p-cookies/step1.html`    | GET      | 3rd-party cookie check step 1 (always returns "supported")             |
@@ -268,6 +303,52 @@ curl -X POST https://local.streamonkey.net:10101/realms/mock/get-signed-mock-tok
 
 Returns the signed JWT token as plain text.
 
+### Userinfo
+
+```bash
+curl https://local.streamonkey.net:10101/realms/mock/protocol/openid-connect/userinfo \
+  -H "Authorization: Bearer <access_token>"
+```
+
+Response:
+```json
+{
+  "sub": "00000000-0000-0000-0000-000000000000",
+  "name": "Mock User",
+  "preferred_username": "mockuser",
+  "given_name": "Mock",
+  "family_name": "User",
+  "email": "mock@example.com",
+  "email_verified": true
+}
+```
+
+The claims are read from the access token itself, so a token from `get-signed-mock-token` works too. Empty profile claims are left out; `sub` and `email_verified` are always present. A POST with the form parameter `access_token=<access_token>` works as well. A bad, expired or foreign token, an ID or refresh token, a token without `sub`, or no token at all gets `401` with an RFC 6750 `WWW-Authenticate: Bearer ...` challenge and a JSON `error` body. Like Keycloak 20 and later, the endpoint also requires `openid` in the token's `scope`: a token without it (e.g. a `client_credentials` token requested without `scope=openid`) gets `403` with `error="insufficient_scope"`.
+
+### Token Introspection
+
+```bash
+curl -X POST https://local.streamonkey.net:10101/realms/mock/protocol/openid-connect/token/introspect \
+  -u my-service:any-secret \
+  -d "token=<token>"
+```
+
+Response for a valid token (abridged: every claim of the token is included):
+```json
+{
+  "active": true,
+  "client_id": "my-service",
+  "username": "mockuser",
+  "token_type": "Bearer",
+  "sub": "00000000-0000-0000-0000-000000000000",
+  "iss": "https://local.streamonkey.net:10101/realms/mock",
+  "exp": 1770384165,
+  "scope": "openid"
+}
+```
+
+`client_id` is the token's `azp`, `username` its `preferred_username` and `token_type` its `typ`, each only when the token has it. Access, ID and refresh tokens are all introspected; `token_type_hint` is ignored. A token that is expired, carries a different issuer, is not signed RS256 with the mock key, or does not parse returns `{"active":false}` and nothing else. The calling client may authenticate via HTTP Basic or `client_id`/`client_secret` form fields, or not at all; nothing is checked. A request without a `token` parameter gets `400 invalid_request`.
+
 ## Token Structure
 
 Access tokens include claims matching Keycloak's format:
@@ -307,6 +388,7 @@ ID tokens include the `nonce` claim (echoed from the authorization request) for 
 - CORS headers are set to allow cross-origin requests from any origin
 - Session iframe always returns "unchanged" (no real session management)
 - 3rd-party cookie checks always return "supported"
+- Userinfo and introspection verify the token's RS256 signature against the mock key, `exp` and `iss`, and userinfo also requires `typ` `Bearer`, a `sub` and the `openid` scope; neither authenticates the calling client, and userinfo returns profile claims only, no roles or groups
 
 ## Test Commands
 
