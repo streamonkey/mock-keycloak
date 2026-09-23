@@ -14,6 +14,8 @@ type OpenIDConfiguration struct {
 	Issuer                            string   `json:"issuer"`
 	AuthorizationEndpoint             string   `json:"authorization_endpoint"`
 	TokenEndpoint                     string   `json:"token_endpoint"`
+	IntrospectionEndpoint             string   `json:"introspection_endpoint"`
+	UserinfoEndpoint                  string   `json:"userinfo_endpoint"`
 	EndSessionEndpoint                string   `json:"end_session_endpoint"`
 	JwksURI                           string   `json:"jwks_uri"`
 	CheckSessionIframe                string   `json:"check_session_iframe"`
@@ -34,6 +36,8 @@ func HandleOpenIDConfig(baseURL, realm string) http.HandlerFunc {
 		Issuer:                            realmURL,
 		AuthorizationEndpoint:             realmURL + "/protocol/openid-connect/auth",
 		TokenEndpoint:                     realmURL + "/protocol/openid-connect/token",
+		IntrospectionEndpoint:             realmURL + "/protocol/openid-connect/token/introspect",
+		UserinfoEndpoint:                  realmURL + "/protocol/openid-connect/userinfo",
 		EndSessionEndpoint:                realmURL + "/protocol/openid-connect/logout",
 		JwksURI:                           realmURL + "/protocol/openid-connect/certs",
 		CheckSessionIframe:                realmURL + "/protocol/openid-connect/login-status-iframe.html",
