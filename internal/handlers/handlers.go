@@ -16,6 +16,7 @@ type OpenIDConfiguration struct {
 	TokenEndpoint                     string   `json:"token_endpoint"`
 	IntrospectionEndpoint             string   `json:"introspection_endpoint"`
 	UserinfoEndpoint                  string   `json:"userinfo_endpoint"`
+	DeviceAuthorizationEndpoint       string   `json:"device_authorization_endpoint"`
 	EndSessionEndpoint                string   `json:"end_session_endpoint"`
 	JwksURI                           string   `json:"jwks_uri"`
 	CheckSessionIframe                string   `json:"check_session_iframe"`
@@ -38,6 +39,7 @@ func HandleOpenIDConfig(baseURL, realm string) http.HandlerFunc {
 		TokenEndpoint:                     realmURL + "/protocol/openid-connect/token",
 		IntrospectionEndpoint:             realmURL + "/protocol/openid-connect/token/introspect",
 		UserinfoEndpoint:                  realmURL + "/protocol/openid-connect/userinfo",
+		DeviceAuthorizationEndpoint:       realmURL + "/protocol/openid-connect/auth/device",
 		EndSessionEndpoint:                realmURL + "/protocol/openid-connect/logout",
 		JwksURI:                           realmURL + "/protocol/openid-connect/certs",
 		CheckSessionIframe:                realmURL + "/protocol/openid-connect/login-status-iframe.html",
@@ -45,7 +47,7 @@ func HandleOpenIDConfig(baseURL, realm string) http.HandlerFunc {
 		IDTokenSigningAlgValuesSupported:  []string{"RS256"},
 		ResponseTypesSupported:            []string{"code"},
 		ResponseModesSupported:            []string{"query", "fragment"},
-		GrantTypesSupported:               []string{"authorization_code", "client_credentials", "password", "refresh_token"},
+		GrantTypesSupported:               []string{"authorization_code", "client_credentials", "password", "refresh_token", deviceCodeGrant},
 		TokenEndpointAuthMethodsSupported: []string{"client_secret_basic", "client_secret_post"},
 		CodeChallengeMethodsSupported:     []string{"S256"},
 	}

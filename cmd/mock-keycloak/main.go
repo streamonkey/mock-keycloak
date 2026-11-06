@@ -66,6 +66,8 @@ func main() {
 	http.HandleFunc(realm+"/protocol/openid-connect/3p-cookies/step1.html", logRequest(handlers.Handle3pCookiesStep1()))
 	http.HandleFunc(realm+"/protocol/openid-connect/3p-cookies/step2.html", logRequest(handlers.Handle3pCookiesStep2()))
 	http.HandleFunc(realm+"/protocol/openid-connect/auth", logRequest(handlers.HandleAuth(cfg)))
+	http.HandleFunc(realm+"/protocol/openid-connect/auth/device", logRequest(cors(handlers.HandleDeviceAuth(cfg.BaseURL, cfg.Realm))))
+	http.HandleFunc(realm+"/device", logRequest(handlers.HandleDevicePage(cfg)))
 	http.HandleFunc(realm+"/protocol/openid-connect/token", logRequest(cors(handlers.HandleToken(cfg.BaseURL, cfg.Realm, cfg))))
 	http.HandleFunc(realm+"/protocol/openid-connect/token/introspect", logRequest(cors(handlers.HandleIntrospect(cfg.BaseURL, cfg.Realm))))
 	http.HandleFunc(realm+"/protocol/openid-connect/userinfo", logRequest(cors(handlers.HandleUserInfo(cfg.BaseURL, cfg.Realm))))

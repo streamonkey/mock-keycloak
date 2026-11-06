@@ -71,9 +71,11 @@ func HandleToken(baseURL, realm string, cfg config.Config) http.HandlerFunc {
 			handlePasswordGrant(w, r, issuer, cfg)
 		case "refresh_token":
 			handleRefreshTokenGrant(w, r, issuer, cfg)
+		case deviceCodeGrant:
+			handleDeviceCodeGrant(w, r, issuer, cfg)
 		default:
 			log.Printf("  -> token request: unsupported grant_type=%s", grantType)
-			writeTokenError(w, "unsupported_grant_type", "grant_type must be authorization_code, client_credentials, password, or refresh_token")
+			writeTokenError(w, "unsupported_grant_type", "grant_type must be authorization_code, client_credentials, password, refresh_token, or device_code")
 		}
 	}
 }
