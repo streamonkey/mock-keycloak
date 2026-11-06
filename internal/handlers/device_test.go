@@ -43,7 +43,7 @@ func TestDeviceGrant(t *testing.T) {
 	}
 
 	rec = httptest.NewRecorder()
-	handlers.HandleDevicePage(cfg)(rec, newRequest(http.MethodPost, "/device", url.Values{"user_code": {start.UserCode}, "user": {"0"}}))
+	handlers.HandleDevicePage(cfg)(rec, newRequest(http.MethodPost, "/device", url.Values{"user_code": {start.UserCode}, "selected_user_index": {"0"}}))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("approval: status %d, body %q", rec.Code, rec.Body.String())
 	}

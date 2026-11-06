@@ -13,10 +13,17 @@ import (
 	"gitlab.streamonkey.net/testing/mock-keycloak/internal/config"
 )
 
-// loginPageData is the template data passed to login.html.
+// loginPageData is the template data passed to login.html. The device page uses the same
+// template: AskCode shows the code field instead of the accounts, Code names the code being
+// approved, and a page without Users shows only its title and subtitle.
 type loginPageData struct {
-	Users  []config.User
-	Params map[string]string
+	Title    string
+	Subtitle string
+	Code     string
+	AskCode  bool
+	Error    string
+	Users    []config.User
+	Params   map[string]string
 }
 
 var loginTmpl = template.Must(
@@ -149,8 +156,10 @@ func renderLoginPage(w http.ResponseWriter, r *http.Request, cfg config.Config) 
 	}
 
 	data := loginPageData{
-		Users:  cfg.Users,
-		Params: params,
+		Title:    "Sign in",
+		Subtitle: "Select an account to continue",
+		Users:    cfg.Users,
+		Params:   params,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

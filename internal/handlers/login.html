@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mock Keycloak – Select User</title>
+    <title>Mock Keycloak – {{.Title}}</title>
     <style>
         * {
             box-sizing: border-box;
@@ -124,6 +124,45 @@
             color: #00796b;
         }
 
+        .code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-weight: 600;
+            color: #333;
+            letter-spacing: .05em;
+        }
+
+        .code-form {
+            display: flex;
+            gap: .5rem;
+        }
+
+        .code-form input {
+            flex: 1;
+            padding: .6rem .75rem;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font: inherit;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            letter-spacing: .05em;
+        }
+
+        .code-form button {
+            padding: .6rem 1rem;
+            border: 0;
+            border-radius: 6px;
+            background: #4a7cff;
+            color: #fff;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .error {
+            color: #c62828;
+            font-size: .85rem;
+            margin-top: .75rem;
+        }
+
         .role-section {
             font-size: .6rem;
             color: #999;
@@ -137,8 +176,15 @@
 
 <body>
     <div class="card">
-        <h1>Sign in</h1>
-        <p class="subtitle">Select an account to continue</p>
+        <h1>{{.Title}}</h1>
+        <p class="subtitle">{{.Subtitle}}{{if .Code}} <span class="code">{{.Code}}</span>{{end}}</p>
+        {{- if .AskCode}}
+        <form method="GET" class="code-form">
+            <input name="user_code" placeholder="1234-5678" autofocus required>
+            <button type="submit">Continue</button>
+        </form>
+        {{- if .Error}}<p class="error">{{.Error}}</p>{{end}}
+        {{- else if .Users}}
         <ul class="user-list">
             {{range $i, $user := .Users}}
             <li>
@@ -170,6 +216,7 @@
             </li>
             {{end}}
         </ul>
+        {{- end}}
     </div>
 </body>
 

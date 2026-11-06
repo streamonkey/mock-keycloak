@@ -3,11 +3,11 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
-	"html"
 	"log"
 	"math/rand/v2"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -73,28 +73,49 @@ func HandleDeviceAuth(baseURL, realm string) http.HandlerFunc {
 	}
 }
 
-// HandleDevicePage shows the mock users for a user code (GET) and approves it (POST).
+// HandleDevicePage approves a user code: it asks for the code unless the link carried it,
+// lists the accounts (GET), and approves the code for the chosen one (POST). It looks like the
+// sign-in page because it is the same template.
 func HandleDevicePage(cfg config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userCode := r.FormValue("user_code")
-		if r.Method == http.MethodPost {
-			index, err := strconv.Atoi(r.FormValue("user"))
+		userCode := strings.TrimSpace(r.FormValue("user_code"))
+		data := loginPageData{Title: "Sign in a device"}
+
+		switch {
+		case r.Method == http.MethodPost:
+			index, err := strconv.Atoi(r.FormValue("selected_user_index"))
 			if err != nil || index < 0 || index >= len(cfg.Users) || !approveDevice(userCode, index) {
-				http.Error(w, "unknown or expired code", http.StatusBadRequest)
-				return
+				data.Subtitle, data.AskCode, data.Error = "Enter the code shown on the device.", true, "This code is unknown or expired."
+				break
 			}
 			log.Printf("  -> device auth: user_code=%s approved as %s", userCode, cfg.Users[index].PreferredUsername)
-			fmt.Fprint(w, "<!doctype html><p>Signed in. You can close this page.</p>")
-			return
+			data.Subtitle = "Signed in as " + cfg.Users[index].Name + ". The device continues by itself; you can close this page."
+		case userCode == "":
+			data.Subtitle, data.AskCode = "Enter the code shown on the device.", true
+		case !pendingDevice(userCode):
+			data.Subtitle, data.AskCode, data.Error = "Enter the code shown on the device.", true, "This code is unknown or expired."
+		default:
+			data.Subtitle, data.Code = "Select an account to approve", userCode
+			data.Users, data.Params = cfg.Users, map[string]string{"user_code": userCode}
 		}
+
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprintf(w, "<!doctype html><title>Device sign-in</title><h1>Sign in a device</h1><form method=post>"+
-			"<p><label>Code <input name=user_code value=\"%s\"></label></p>", html.EscapeString(userCode))
-		for i, u := range cfg.Users {
-			fmt.Fprintf(w, "<p><button name=user value=%d>%s (%s)</button></p>", i, html.EscapeString(u.Name), html.EscapeString(u.PreferredUsername))
+		if err := loginTmpl.Execute(w, data); err != nil {
+			http.Error(w, "failed to render device page", http.StatusInternalServerError)
 		}
-		fmt.Fprint(w, "</form>")
 	}
+}
+
+// pendingDevice reports whether userCode belongs to an unexpired, unapproved authorization.
+func pendingDevice(userCode string) bool {
+	devicesMu.Lock()
+	defer devicesMu.Unlock()
+	for _, d := range devices {
+		if d.userCode == userCode && d.userIndex < 0 && time.Now().Before(d.expires) {
+			return true
+		}
+	}
+	return false
 }
 
 func approveDevice(userCode string, index int) bool {
